@@ -16,6 +16,18 @@
   --color-danger-light: #fdecec;
   --color-info: #2b7fbf;
   --color-info-light: #e8f2fb;
+
+  /* Faculty diary states. Booked reuses the brand blue an interview already
+     carries; busy is deliberately a different hue from both danger-red and
+     free-green so the three read apart at a glance. */
+  --color-booked: #2f4bd8;
+  --color-booked-light: #eef1fe;
+  --color-busy: #7c5cbf;
+  --color-busy-light: #f1ecfa;
+  --color-free: #0f9d58;
+  --color-free-light: #e7f6ee;
+  --color-neutral: #98a2b3;
+  --color-neutral-light: #eef0f4;
 }
 
 :root {

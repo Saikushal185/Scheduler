@@ -34,6 +34,12 @@ import type {
   SchedulingConstraint,
   SchedulingRun,
   UploadRecord,
+  AvailableSlot,
+  FacultyTimelineDay,
+  InterviewChangeRequest,
+  MyResult,
+  ProvisionResponse,
+  User,
 } from "@/lib/types";
 
 export const keys = {
@@ -66,6 +72,11 @@ export const keys = {
   settings: ["settings"] as const,
   uploads: ["uploads"] as const,
   columnMappings: ["column-mappings"] as const,
+  timeline: (params?: unknown) => ["faculty-timeline", params ?? {}] as const,
+  availableSlots: (params?: unknown) => ["available-slots", params ?? {}] as const,
+  changeRequests: (params?: unknown) => ["change-requests", params ?? {}] as const,
+  myResult: ["my-result"] as const,
+  users: ["users"] as const,
 };
 
 type Options<T> = Omit<UseQueryOptions<T, Error, T>, "queryKey" | "queryFn">;
@@ -77,6 +88,8 @@ export function useInvalidateSchedule() {
     ["dashboard", "summary", "interviews", "interview", "calendar", "conflicts",
       "free-slots", "free-slot-groups", "busy-slots", "candidates",
       "analytics-scheduling", "analytics-evaluation", "runs", "interview-history",
+      "faculty-timeline", "available-slots", "change-requests", "my-result",
+      "rankings",
     ].forEach((key) => client.invalidateQueries({ queryKey: [key] }));
   };
 }
@@ -326,5 +339,101 @@ export function useRecalculateFreeSlots() {
       api.post<{ faculty_processed: number; slots_created: number }>(
         "/free-slots/recalculate", body),
     onSuccess: invalidate,
+  });
+}
+
+// ---------------------------------------------------------------- timeline
+export const useFacultyTimeline = (
+  params: { faculty_id?: number; start_date?: string; end_date?: string },
+  options?: Options<FacultyTimelineDay[]>,
+) =>
+  useQuery({
+    queryKey: keys.timeline(params),
+    queryFn: () => api.get<FacultyTimelineDay[]>("/free-slots/timeline", params),
+    ...options,
+  });
+
+// ------------------------------------------------------- manual booking
+/** Slots a manual booking may legally use - a clash is impossible by choice. */
+export const useAvailableSlots = (
+  params: { candidate_id?: number; panel_id?: number; date?: string },
+  options?: Options<AvailableSlot[]>,
+) =>
+  useQuery({
+    queryKey: keys.availableSlots(params),
+    queryFn: () => api.get<AvailableSlot[]>("/interviews/available-slots", params),
+    // Only meaningful once all three have been chosen.
+    enabled: Boolean(params.candidate_id && params.panel_id && params.date),
+    ...options,
+  });
+
+export function useCreateInterview() {
+  const invalidate = useInvalidateSchedule();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api.post<ManualChangeResponse>("/interviews", body),
+    onSuccess: invalidate,
+  });
+}
+
+// ------------------------------------------------ candidate self-service
+export const useMyResult = (options?: Options<MyResult>) =>
+  useQuery({
+    queryKey: keys.myResult,
+    queryFn: () => api.get<MyResult>("/evaluations/my-result"),
+    ...options,
+  });
+
+export function useConfirmAttendance() {
+  const invalidate = useInvalidateSchedule();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api.post<ManualChangeResponse>(`/interviews/${id}/confirm`, {}),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRequestChange() {
+  const invalidate = useInvalidateSchedule();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      api.post<InterviewChangeRequest>(`/interviews/${id}/change-request`, body),
+    onSuccess: invalidate,
+  });
+}
+
+export const useChangeRequests = (
+  params: { status?: string } = {},
+  options?: Options<InterviewChangeRequest[]>,
+) =>
+  useQuery({
+    queryKey: keys.changeRequests(params),
+    queryFn: () => api.get<InterviewChangeRequest[]>("/interview-requests", params),
+    ...options,
+  });
+
+export function useDecideChangeRequest() {
+  const invalidate = useInvalidateSchedule();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      api.post<InterviewChangeRequest>(`/interview-requests/${id}/decide`, body),
+    onSuccess: invalidate,
+  });
+}
+
+// -------------------------------------------------------- administration
+export const useUsers = (options?: Options<User[]>) =>
+  useQuery({
+    queryKey: keys.users,
+    queryFn: () => api.get<User[]>("/auth/users"),
+    ...options,
+  });
+
+export function useProvisionAccounts() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { faculty?: boolean; candidates?: boolean } = {}) =>
+      api.post<ProvisionResponse>("/uploads/provision-accounts", params),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
   });
 }

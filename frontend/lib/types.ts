@@ -15,12 +15,17 @@ export type DatasetType =
   | "CANDIDATES" | "FACULTY" | "FACULTY_AVAILABILITY" | "FACULTY_BUSY_SLOTS"
   | "PANEL_GROUPS" | "INTERVIEW_SETTINGS" | "EVALUATIONS";
 
+export type UserRole = "ADMIN" | "COORDINATOR" | "FACULTY" | "STUDENT" | "VIEWER";
+
 export interface User {
   id: number;
   email: string;
   full_name: string;
-  role: string;
+  role: UserRole;
   is_active: boolean;
+  must_change_password?: boolean;
+  faculty_id?: number | null;
+  candidate_id?: number | null;
 }
 
 export interface LoginResponse {
@@ -192,6 +197,7 @@ export interface Interview {
   unscheduled_reason?: string | null;
   is_locked: boolean;
   is_manual: boolean;
+  candidate_confirmed_at?: string | null;
   round_number: number;
   location?: string | null;
   notes?: string | null;
@@ -580,4 +586,95 @@ export interface ColumnMapping {
   required: string[];
   optional: string[];
   aliases: Record<string, string[]>;
+}
+
+/** Booked / busy / free segments used by the availability colour coding. */
+export interface TimelineSegment {
+  kind: "BOOKED" | "BUSY" | "FREE" | "UNAVAILABLE";
+  start_time: string;
+  end_time: string;
+  start_minute: number;
+  end_minute: number;
+  duration_minutes: number;
+  label: string;
+  interview_id?: number | null;
+  schedule_code?: string | null;
+  status?: string | null;
+}
+
+export interface FacultyTimelineDay {
+  faculty_id: number;
+  faculty_code: string;
+  faculty_name: string;
+  department?: string | null;
+  date: string;
+  segments: TimelineSegment[];
+  booked_minutes: number;
+  busy_minutes: number;
+  free_minutes: number;
+  declared_minutes: number;
+}
+
+/** A slot a manual booking may legally use. */
+export interface AvailableSlot {
+  date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  panel_id: number;
+  faculty_ids: number[];
+  faculty_names: string[];
+  score: number;
+  reasons: PriorityOutcome[];
+}
+
+export type ChangeRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "WITHDRAWN";
+
+export interface InterviewChangeRequest {
+  id: number;
+  interview_id: number;
+  candidate_id: number;
+  requested_date?: string | null;
+  requested_start_time?: string | null;
+  reason?: string | null;
+  status: ChangeRequestStatus;
+  decision_note?: string | null;
+  decided_by?: number | null;
+  decided_at?: string | null;
+  created_at?: string | null;
+  candidate_name?: string | null;
+  candidate_code?: string | null;
+  current_date?: string | null;
+  current_start_time?: string | null;
+}
+
+/** A candidate's own compiled result, gated on release by an administrator. */
+export interface MyResult {
+  published: boolean;
+  message?: string | null;
+  profile?: {
+    candidate_id: number;
+    candidate_code: string;
+    candidate_name: string;
+    overall_score: number;
+    normalized_score: number;
+    evaluator_count: number;
+    metrics: Record<string, unknown>[];
+    strongest_metric?: string | null;
+    weakest_metric?: string | null;
+  } | null;
+}
+
+export interface ProvisionedAccount {
+  email: string;
+  full_name: string;
+  role: UserRole;
+  temporary_password: string;
+}
+
+export interface ProvisionResponse {
+  created: number;
+  skipped: number;
+  accounts: ProvisionedAccount[];
+  notes: string[];
 }

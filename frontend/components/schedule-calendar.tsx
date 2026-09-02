@@ -8,15 +8,26 @@ import * as React from "react";
 
 import type { CalendarEvent } from "@/lib/types";
 
+// Driven by the design tokens in globals.css rather than literal hex, so the
+// calendar, the badges and the availability timeline cannot drift apart.
 const STATUS_COLOURS: Record<string, string> = {
-  SCHEDULED: "#2f4bd8",
-  RESCHEDULED: "#2b7fbf",
-  COMPLETED: "#0f9d58",
-  PENDING: "#d98324",
-  CONFLICT: "#d64545",
-  CANCELLED: "#98a2b3",
-  UNSCHEDULED: "#98a2b3",
+  SCHEDULED: "var(--color-booked)",
+  RESCHEDULED: "var(--color-info)",
+  COMPLETED: "var(--color-success)",
+  PENDING: "var(--color-warning)",
+  CONFLICT: "var(--color-danger)",
+  CANCELLED: "var(--color-neutral)",
+  UNSCHEDULED: "var(--color-neutral)",
 };
+
+export const CALENDAR_LEGEND: { label: string; token: string }[] = [
+  { label: "Scheduled", token: "var(--color-booked)" },
+  { label: "Rescheduled", token: "var(--color-info)" },
+  { label: "Completed", token: "var(--color-success)" },
+  { label: "Pending", token: "var(--color-warning)" },
+  { label: "Conflict", token: "var(--color-danger)" },
+  { label: "Cancelled", token: "var(--color-neutral)" },
+];
 
 export function ScheduleCalendar({
   events,
@@ -38,7 +49,7 @@ export function ScheduleCalendar({
         end: event.end,
         backgroundColor: event.has_conflict
           ? STATUS_COLOURS.CONFLICT
-          : (STATUS_COLOURS[event.status] ?? "#2f4bd8"),
+          : (STATUS_COLOURS[event.status] ?? "var(--color-booked)"),
         borderColor: "transparent",
         textColor: "#fff",
         extendedProps: event,
