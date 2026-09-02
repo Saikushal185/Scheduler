@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f6f7fb;
+  --color-surface: #ffffff;
+  --color-border: #e3e6ef;
+  --color-muted: #6b7280;
+  --color-brand: #2f4bd8;
+  --color-brand-dark: #22349b;
+  --color-brand-light: #eef1fe;
+  --color-success: #0f9d58;
+  --color-success-light: #e7f6ee;
+  --color-warning: #d98324;
+  --color-warning-light: #fdf2e3;
+  --color-danger: #d64545;
+  --color-danger-light: #fdecec;
+  --color-info: #2b7fbf;
+  --color-info-light: #e8f2fb;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-background);
+  color: #16181d;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d3d7e3;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #bcc2d4;
+  background-clip: content-box;
+}
+
+/* FullCalendar theming ------------------------------------------------- */
+.fc {
+  --fc-border-color: var(--color-border);
+  --fc-today-bg-color: var(--color-brand-light);
+  --fc-page-bg-color: var(--color-surface);
+  font-size: 13px;
+}
+.fc .fc-toolbar-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.fc .fc-button {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: #16181d;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  text-transform: capitalize;
+  box-shadow: none;
+}
+.fc .fc-button:hover {
+  background: var(--color-brand-light);
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+.fc .fc-event {
+  border-radius: 6px;
+  border: none;
+  padding: 1px 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number {
+  color: #16181d;
+  text-decoration: none;
+}
