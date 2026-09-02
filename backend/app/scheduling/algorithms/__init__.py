@@ -4,8 +4,10 @@ from app.scheduling.algorithms.base import (SchedulerAlgorithm, Solution,
                                             available_algorithms, get_algorithm,
                                             register_algorithm)
 from app.scheduling.algorithms.greedy import GreedyScheduler
+from app.scheduling.algorithms.optimized import OptimizedScheduler
 
 __all__ = [
     "SchedulerAlgorithm", "Solution", "get_algorithm", "available_algorithms",
     "register_algorithm", "GreedyScheduler", "BacktrackingScheduler",
+    "OptimizedScheduler",
 ]

@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     DEFAULT_MAX_PANEL_SIZE: int = 4
     DEFAULT_SLOT_GRANULARITY_MIN: int = 15
     DEFAULT_MAX_INTERVIEWS_PER_FACULTY_PER_DAY: int = 12
-    DEFAULT_ALGORITHM: str = "backtracking"
+    DEFAULT_ALGORITHM: str = "optimized"
 
     # Weight applied to every soft-constraint priority band.  The scheduler
     # scores candidate x panel x slot combinations with these multipliers.
