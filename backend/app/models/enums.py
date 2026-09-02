@@ -13,6 +13,7 @@ class UserRole(StrEnum):
     ADMIN = "ADMIN"
     COORDINATOR = "COORDINATOR"
     FACULTY = "FACULTY"
+    STUDENT = "STUDENT"
     VIEWER = "VIEWER"
 
 
@@ -96,6 +97,13 @@ class DatasetType(StrEnum):
     EVALUATIONS = "EVALUATIONS"
 
 
+class ChangeRequestStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
 class HistoryAction(StrEnum):
     CREATED = "CREATED"
     AUTO_SCHEDULED = "AUTO_SCHEDULED"
@@ -107,3 +115,5 @@ class HistoryAction(StrEnum):
     UNLOCKED = "UNLOCKED"
     COMPLETED = "COMPLETED"
     MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
+    CONFIRMED = "CONFIRMED"
+    CHANGE_REQUESTED = "CHANGE_REQUESTED"

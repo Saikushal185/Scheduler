@@ -23,6 +23,15 @@ class UserRepository(BaseRepository[User]):
     def by_email(self, email: str) -> User | None:
         return self.get_by(email=email.lower().strip())
 
+    def by_link(self, *, faculty_id: int | None = None,
+                candidate_id: int | None = None) -> User | None:
+        """The account belonging to one faculty member or candidate."""
+        if faculty_id is not None:
+            return self.get_by(faculty_id=faculty_id)
+        if candidate_id is not None:
+            return self.get_by(candidate_id=candidate_id)
+        return None
+
 
 class CandidateRepository(BaseRepository[Candidate]):
     model = Candidate
