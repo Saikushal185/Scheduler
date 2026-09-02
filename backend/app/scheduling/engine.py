@@ -41,6 +41,7 @@ class SchedulingEngine:
         solution = algorithm.solve(ctx, options, blocked)
         conflicts = detect_conflicts(ctx, solution.assignments)
         elapsed_ms = int((_time.perf_counter() - started) * 1000)
+        satisfaction = _constraint_summary(solution.assignments)
 
         result = SchedulingResult(
             algorithm=algorithm.name,
@@ -58,12 +59,56 @@ class SchedulingEngine:
                 "empty_domain_candidates": len(blocked),
                 "duration_minutes": ctx.options.duration_minutes,
                 "break_minutes": ctx.options.break_minutes,
+                "constraint_satisfaction": satisfaction,
             },
         )
         logger.info("Scheduling finished in %sms: %s scheduled, %s unscheduled, "
                     "%s conflict(s), score %.1f", elapsed_ms, result.scheduled_count,
                     len(result.unscheduled), len(conflicts), result.total_score)
         return result
+
+
+def _constraint_summary(assignments) -> list[dict[str, object]]:
+    """Per constraint type: how often it was satisfied and what it cost.
+
+    Makes a schedule defensible - "why did we end up here" is answered by which
+    soft constraints were traded away and how much score that forfeited.
+    """
+    # Best achieved score per constraint type, computed once - "forgone" is
+    # measured against the best any placement actually managed.
+    best_by_type: dict[str, float] = {}
+    for assignment in assignments:
+        for outcome in assignment.outcomes:
+            if outcome.score > best_by_type.get(outcome.constraint_type, 0.0):
+                best_by_type[outcome.constraint_type] = outcome.score
+
+    tally: dict[str, dict[str, object]] = {}
+    for assignment in assignments:
+        for outcome in assignment.outcomes:
+            row = tally.setdefault(outcome.constraint_type, {
+                "type": outcome.constraint_type,
+                "priority": outcome.priority,
+                "satisfied": 0, "violated": 0,
+                "score_awarded": 0.0, "score_forgone": 0.0,
+            })
+            best = best_by_type.get(outcome.constraint_type, 0.0)
+            if outcome.satisfied:
+                row["satisfied"] += 1
+            else:
+                row["violated"] += 1
+            row["score_awarded"] += outcome.score
+            row["score_forgone"] += max(0.0, best - outcome.score)
+    summary = []
+    for row in tally.values():
+        total = row["satisfied"] + row["violated"]
+        summary.append({
+            **row,
+            "score_awarded": round(row["score_awarded"], 2),
+            "score_forgone": round(row["score_forgone"], 2),
+            "satisfaction_rate": round(100.0 * row["satisfied"] / total, 1) if total else 0.0,
+        })
+    summary.sort(key=lambda r: -r["score_forgone"])
+    return summary
 
 
 def list_algorithms() -> list[dict[str, str]]:
