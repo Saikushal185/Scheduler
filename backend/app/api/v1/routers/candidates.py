@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentScope, DbSession, ManagerUser, StaffUser
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.permissions import assert_candidate_owns
 from app.models.enums import CandidateStatus
 from app.repositories import CandidateRepository
 from app.schemas.candidate import CandidateCreate, CandidateRead, CandidateUpdate
@@ -13,21 +14,26 @@ router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
 
 @router.get("", response_model=list[CandidateRead], summary="List/search candidates")
-def list_candidates(db: DbSession, user: CurrentUser,
+def list_candidates(db: DbSession, scope: CurrentScope,
                     q: str | None = Query(default=None, description="Free-text search"),
                     status_filter: CandidateStatus | None = Query(default=None,
                                                                   alias="status"),
                     department: str | None = None,
                     skip: int = 0, limit: int | None = Query(default=200, le=1000)):
-    rows = CandidateRepository(db).search(query=q,
-                                          status=status_filter.value if status_filter
-                                          else None,
-                                          department=department, skip=skip, limit=limit)
+    repo = CandidateRepository(db)
+    # A student's "list" is just themselves.
+    if scope.candidate_id is not None:
+        row = repo.get(scope.candidate_id)
+        return [CandidateRead.model_validate(row)] if row else []
+    rows = repo.search(query=q,
+                       status=status_filter.value if status_filter else None,
+                       department=department, skip=skip, limit=limit)
     return [CandidateRead.model_validate(row) for row in rows]
 
 
 @router.get("/{candidate_id}", response_model=CandidateRead, summary="Get a candidate")
-def get_candidate(candidate_id: int, db: DbSession, user: CurrentUser):
+def get_candidate(candidate_id: int, db: DbSession, scope: CurrentScope):
+    assert_candidate_owns(scope, candidate_id, "record")
     row = CandidateRepository(db).get(candidate_id)
     if row is None:
         raise NotFoundError(f"Candidate {candidate_id} was not found")
@@ -36,7 +42,7 @@ def get_candidate(candidate_id: int, db: DbSession, user: CurrentUser):
 
 @router.post("", response_model=CandidateRead, status_code=status.HTTP_201_CREATED,
              summary="Create a candidate")
-def create_candidate(payload: CandidateCreate, db: DbSession, user: CurrentUser):
+def create_candidate(payload: CandidateCreate, db: DbSession, user: ManagerUser):
     repo = CandidateRepository(db)
     if repo.by_code(payload.candidate_code):
         raise ValidationError(
@@ -49,7 +55,7 @@ def create_candidate(payload: CandidateCreate, db: DbSession, user: CurrentUser)
 
 @router.put("/{candidate_id}", response_model=CandidateRead, summary="Update a candidate")
 def update_candidate(candidate_id: int, payload: CandidateUpdate, db: DbSession,
-                     user: CurrentUser):
+                     user: ManagerUser):
     repo = CandidateRepository(db)
     row = repo.get(candidate_id)
     if row is None:
@@ -65,7 +71,7 @@ def update_candidate(candidate_id: int, payload: CandidateUpdate, db: DbSession,
 
 
 @router.delete("/{candidate_id}", response_model=Message, summary="Delete a candidate")
-def delete_candidate(candidate_id: int, db: DbSession, user: CurrentUser):
+def delete_candidate(candidate_id: int, db: DbSession, user: ManagerUser):
     repo = CandidateRepository(db)
     row = repo.get(candidate_id)
     if row is None:

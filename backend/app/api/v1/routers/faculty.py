@@ -4,8 +4,9 @@ from datetime import date
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentScope, DbSession, ManagerUser, StaffUser
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.permissions import assert_faculty_owns
 from app.repositories import (AvailabilityRepository, BusySlotRepository,
                               FacultyRepository)
 from app.schemas.common import Message
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/faculty", tags=["Faculty"])
 
 
 @router.get("", response_model=list[FacultyRead], summary="List/search faculty")
-def list_faculty(db: DbSession, user: CurrentUser, q: str | None = None,
+def list_faculty(db: DbSession, user: StaffUser, q: str | None = None,
                  department: str | None = None, skip: int = 0,
                  limit: int | None = Query(default=200, le=1000)):
     rows = FacultyRepository(db).search(query=q, department=department, skip=skip,
@@ -27,12 +28,12 @@ def list_faculty(db: DbSession, user: CurrentUser, q: str | None = None,
 
 
 @router.get("/departments", response_model=list[str], summary="Distinct departments")
-def departments(db: DbSession, user: CurrentUser):
+def departments(db: DbSession, user: StaffUser):
     return FacultyRepository(db).departments()
 
 
 @router.get("/{faculty_id}", response_model=FacultyRead, summary="Get a faculty member")
-def get_faculty(faculty_id: int, db: DbSession, user: CurrentUser):
+def get_faculty(faculty_id: int, db: DbSession, user: StaffUser):
     row = FacultyRepository(db).get(faculty_id)
     if row is None:
         raise NotFoundError(f"Faculty {faculty_id} was not found")
@@ -41,7 +42,7 @@ def get_faculty(faculty_id: int, db: DbSession, user: CurrentUser):
 
 @router.post("", response_model=FacultyRead, status_code=status.HTTP_201_CREATED,
              summary="Create a faculty member")
-def create_faculty(payload: FacultyCreate, db: DbSession, user: CurrentUser):
+def create_faculty(payload: FacultyCreate, db: DbSession, user: ManagerUser):
     repo = FacultyRepository(db)
     if repo.by_code(payload.faculty_code):
         raise ValidationError(f"Faculty code '{payload.faculty_code}' already exists")
@@ -50,7 +51,7 @@ def create_faculty(payload: FacultyCreate, db: DbSession, user: CurrentUser):
 
 @router.put("/{faculty_id}", response_model=FacultyRead, summary="Update a faculty member")
 def update_faculty(faculty_id: int, payload: FacultyUpdate, db: DbSession,
-                   user: CurrentUser):
+                   user: ManagerUser):
     repo = FacultyRepository(db)
     row = repo.get(faculty_id)
     if row is None:
@@ -64,7 +65,7 @@ def update_faculty(faculty_id: int, payload: FacultyUpdate, db: DbSession,
 
 
 @router.delete("/{faculty_id}", response_model=Message, summary="Delete a faculty member")
-def delete_faculty(faculty_id: int, db: DbSession, user: CurrentUser):
+def delete_faculty(faculty_id: int, db: DbSession, user: ManagerUser):
     repo = FacultyRepository(db)
     row = repo.get(faculty_id)
     if row is None:
@@ -80,7 +81,7 @@ availability_router = APIRouter(prefix="/faculty-availability",
 
 @router.get("/{faculty_id}/availability", response_model=list[AvailabilityRead],
             summary="Availability windows for one faculty member")
-def faculty_availability(faculty_id: int, db: DbSession, user: CurrentUser,
+def faculty_availability(faculty_id: int, db: DbSession, user: StaffUser,
                          start_date: date | None = None, end_date: date | None = None):
     rows = AvailabilityRepository(db).for_faculty(faculty_id, start=start_date,
                                                   end=end_date)
@@ -89,8 +90,11 @@ def faculty_availability(faculty_id: int, db: DbSession, user: CurrentUser,
 
 @availability_router.get("", response_model=list[AvailabilityRead],
                          summary="List availability windows")
-def list_availability(db: DbSession, user: CurrentUser, faculty_id: int | None = None,
+def list_availability(db: DbSession, scope: CurrentScope,
+                      faculty_id: int | None = None,
                       start_date: date | None = None, end_date: date | None = None):
+    if scope.faculty_id is not None:
+        faculty_id = scope.faculty_id
     repo = AvailabilityRepository(db)
     rows = (repo.for_faculty(faculty_id, start=start_date, end=end_date) if faculty_id
             else repo.in_range(start_date, end_date))
@@ -100,7 +104,9 @@ def list_availability(db: DbSession, user: CurrentUser, faculty_id: int | None =
 @availability_router.post("", response_model=AvailabilityRead,
                           status_code=status.HTTP_201_CREATED,
                           summary="Declare availability")
-def create_availability(payload: AvailabilityCreate, db: DbSession, user: CurrentUser):
+def create_availability(payload: AvailabilityCreate, db: DbSession,
+                        scope: CurrentScope):
+    assert_faculty_owns(scope, payload.faculty_id, "availability")
     if FacultyRepository(db).get(payload.faculty_id) is None:
         raise NotFoundError(f"Faculty {payload.faculty_id} was not found")
     repo = AvailabilityRepository(db)
@@ -116,11 +122,12 @@ def create_availability(payload: AvailabilityCreate, db: DbSession, user: Curren
 @availability_router.put("/{availability_id}", response_model=AvailabilityRead,
                          summary="Update an availability window")
 def update_availability(availability_id: int, payload: AvailabilityUpdate,
-                        db: DbSession, user: CurrentUser):
+                        db: DbSession, scope: CurrentScope):
     repo = AvailabilityRepository(db)
     row = repo.get(availability_id)
     if row is None:
         raise NotFoundError(f"Availability window {availability_id} was not found")
+    assert_faculty_owns(scope, row.faculty_id, "availability")
     for key, value in payload.model_dump(exclude_unset=True).items():
         if value is not None:
             setattr(row, key, value)
@@ -133,11 +140,12 @@ def update_availability(availability_id: int, payload: AvailabilityUpdate,
 
 @availability_router.delete("/{availability_id}", response_model=Message,
                             summary="Remove an availability window")
-def delete_availability(availability_id: int, db: DbSession, user: CurrentUser):
+def delete_availability(availability_id: int, db: DbSession, scope: CurrentScope):
     repo = AvailabilityRepository(db)
     row = repo.get(availability_id)
     if row is None:
         raise NotFoundError(f"Availability window {availability_id} was not found")
+    assert_faculty_owns(scope, row.faculty_id, "availability")
     faculty_id = row.faculty_id
     repo.delete(row)
     FreeSlotService(db).recalculate_for_faculty([faculty_id])
@@ -149,8 +157,10 @@ busy_router = APIRouter(prefix="/faculty-busy-slots", tags=["Faculty Availabilit
 
 
 @busy_router.get("", response_model=list[BusySlotRead], summary="List busy slots")
-def list_busy(db: DbSession, user: CurrentUser, faculty_id: int | None = None,
+def list_busy(db: DbSession, scope: CurrentScope, faculty_id: int | None = None,
               start_date: date | None = None, end_date: date | None = None):
+    if scope.faculty_id is not None:
+        faculty_id = scope.faculty_id
     repo = BusySlotRepository(db)
     rows = (repo.for_faculty(faculty_id) if faculty_id
             else repo.in_range(start_date, end_date))
@@ -159,7 +169,8 @@ def list_busy(db: DbSession, user: CurrentUser, faculty_id: int | None = None,
 
 @busy_router.post("", response_model=BusySlotRead, status_code=status.HTTP_201_CREATED,
                   summary="Block time for a faculty member")
-def create_busy(payload: BusySlotCreate, db: DbSession, user: CurrentUser):
+def create_busy(payload: BusySlotCreate, db: DbSession, scope: CurrentScope):
+    assert_faculty_owns(scope, payload.faculty_id, "busy slots")
     if FacultyRepository(db).get(payload.faculty_id) is None:
         raise NotFoundError(f"Faculty {payload.faculty_id} was not found")
     row = BusySlotRepository(db).create(**payload.model_dump())
@@ -168,11 +179,12 @@ def create_busy(payload: BusySlotCreate, db: DbSession, user: CurrentUser):
 
 
 @busy_router.delete("/{busy_id}", response_model=Message, summary="Remove a busy slot")
-def delete_busy(busy_id: int, db: DbSession, user: CurrentUser):
+def delete_busy(busy_id: int, db: DbSession, scope: CurrentScope):
     repo = BusySlotRepository(db)
     row = repo.get(busy_id)
     if row is None:
         raise NotFoundError(f"Busy slot {busy_id} was not found")
+    assert_faculty_owns(scope, row.faculty_id, "busy slots")
     if row.interview_id is not None:
         raise ValidationError(
             "This block belongs to a scheduled interview; cancel the interview instead")
