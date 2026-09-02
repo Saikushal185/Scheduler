@@ -111,6 +111,34 @@ class FreeSlotRead(ORMModel):
     duration_minutes: int
 
 
+class TimelineSegment(BaseModel):
+    """One coloured block on a faculty member's day."""
+
+    kind: str  # BOOKED | BUSY | FREE
+    start_time: _dt.time
+    end_time: _dt.time
+    start_minute: int
+    end_minute: int
+    duration_minutes: int
+    label: str = ""
+    interview_id: int | None = None
+    schedule_code: str | None = None
+    status: str | None = None
+
+
+class FacultyTimelineDay(BaseModel):
+    faculty_id: int
+    faculty_code: str
+    faculty_name: str
+    department: str | None = None
+    date: _dt.date
+    segments: list[TimelineSegment] = Field(default_factory=list)
+    booked_minutes: int = 0
+    busy_minutes: int = 0
+    free_minutes: int = 0
+    declared_minutes: int = 0
+
+
 class FreeSlotGroup(BaseModel):
     faculty_id: int
     faculty_code: str

@@ -20,7 +20,8 @@ from app.models.enums import AvailabilityStatus, BusySlotSource, InterviewStatus
 from app.repositories import (AvailabilityRepository, BusySlotRepository,
                               FacultyRepository, FreeSlotRepository,
                               InterviewRepository)
-from app.utils.timeutils import Interval, subtract_intervals
+from app.utils.timeutils import (Interval, merge_intervals,
+                                 subtract_intervals)
 
 logger = get_logger(__name__)
 
@@ -163,3 +164,111 @@ class FreeSlotService:
                 "total_free_minutes": sum(s.duration_minutes for s in slots),
             })
         return groups
+
+    # ----------------------------------------------------------------- timeline
+    def timeline(self, *, faculty_ids: Sequence[int] | None = None,
+                 start: date | None = None, end: date | None = None) -> list[dict]:
+        """A day's diary per faculty member as coloured, non-overlapping segments.
+
+        Four kinds, because "not free" means two very different things to the
+        person reading the calendar:
+
+            BOOKED      an interview (busy slot with source=INTERVIEW)
+            BUSY        declared unavailable / manually blocked / imported
+            FREE        calculated free time
+            UNAVAILABLE outside any declared availability window
+
+        Derived from the same three tables `recalculate()` reads, so the picture
+        can never disagree with the free slots the scheduler consumes.
+        """
+        targets = set(faculty_ids) if faculty_ids else None
+        faculty = {f.id: f for f in self.faculty_repo.all()}
+
+        availability: dict[tuple[int, date], list] = defaultdict(list)
+        for row in self.availability_repo.in_range(start, end):
+            if targets is None or row.faculty_id in targets:
+                availability[(row.faculty_id, row.date)].append(row)
+
+        busy: dict[tuple[int, date], list] = defaultdict(list)
+        for row in self.busy_repo.in_range(start, end):
+            if targets is None or row.faculty_id in targets:
+                busy[(row.faculty_id, row.date)].append(row)
+
+        interviews = {i.id: i for i in self.interview_repo.search(
+            start=start, end=end, limit=None)}
+
+        keys = sorted(set(availability) | set(busy), key=lambda k: (k[1], k[0]))
+        days: list[dict] = []
+        for faculty_id, day in keys:
+            member = faculty.get(faculty_id)
+            if member is None:
+                continue
+            declared = [Interval.from_times(r.start_time, r.end_time)
+                        for r in availability.get((faculty_id, day), ())
+                        if r.availability_status == AvailabilityStatus.AVAILABLE]
+
+            segments: list[dict] = []
+            blocks: list[Interval] = []
+            # Declared-unavailable windows read as BUSY.
+            for row in availability.get((faculty_id, day), ()):
+                if row.availability_status == AvailabilityStatus.AVAILABLE:
+                    continue
+                interval = Interval.from_times(row.start_time, row.end_time)
+                blocks.append(interval)
+                segments.append(self._segment("BUSY", interval,
+                                              label="Marked unavailable"))
+            for row in busy.get((faculty_id, day), ()):
+                interval = Interval.from_times(row.start_time, row.end_time)
+                blocks.append(interval)
+                if row.source == BusySlotSource.INTERVIEW:
+                    interview = interviews.get(row.interview_id)
+                    candidate = interview.candidate if interview else None
+                    segments.append(self._segment(
+                        "BOOKED", interval,
+                        label=(candidate.candidate_name if candidate
+                               else (row.reason or "Interview")),
+                        interview_id=row.interview_id,
+                        schedule_code=interview.schedule_code if interview else None,
+                        status=interview.status.value if interview else None))
+                else:
+                    segments.append(self._segment(
+                        "BUSY", interval,
+                        label=row.reason or row.source.value.title()))
+
+            for free in subtract_intervals(declared, blocks):
+                segments.append(self._segment("FREE", free, label="Free"))
+
+            segments.sort(key=lambda s: s["start_minute"])
+            booked = sum(s["duration_minutes"] for s in segments
+                         if s["kind"] == "BOOKED")
+            busy_minutes = sum(s["duration_minutes"] for s in segments
+                               if s["kind"] == "BUSY")
+            free_minutes = sum(s["duration_minutes"] for s in segments
+                               if s["kind"] == "FREE")
+            days.append({
+                "faculty_id": faculty_id,
+                "faculty_code": member.faculty_code,
+                "faculty_name": member.faculty_name,
+                "department": member.department,
+                "date": day,
+                "segments": segments,
+                "booked_minutes": booked,
+                "busy_minutes": busy_minutes,
+                "free_minutes": free_minutes,
+                "declared_minutes": sum(i.duration for i in merge_intervals(declared)),
+            })
+        return days
+
+    @staticmethod
+    def _segment(kind: str, interval: Interval, *, label: str = "",
+                 **extra) -> dict:
+        return {
+            "kind": kind,
+            "start_time": interval.start_time,
+            "end_time": interval.end_time,
+            "start_minute": interval.start,
+            "end_minute": interval.end,
+            "duration_minutes": interval.duration,
+            "label": label,
+            **extra,
+        }
