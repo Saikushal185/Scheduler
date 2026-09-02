@@ -13,7 +13,7 @@ from app.scheduling.types import ConstraintSpec, ExistingBooking
 from tests.conftest import (DAY1, DAY2, default_constraints, iv, make_candidate,
                             make_context, make_faculty, make_options, make_panel)
 
-ALGORITHMS = ["greedy", "backtracking"]
+ALGORITHMS = ["greedy", "backtracking", "optimized"]
 
 
 def run(ctx, algorithm="backtracking"):
@@ -382,3 +382,48 @@ def test_larger_instance_stays_conflict_free(algorithm):
     assert result.conflicts == []
     assert result.scheduled_count >= 30
     assert result.duration_ms < 20000
+
+
+# ------------------------------------------------------- optimisation guarantees
+def test_optimised_is_never_worse_than_its_own_seed(simple_setup):
+    """The improvement pass must only ever accept strict gains."""
+    candidates, faculty, panels = simple_setup
+    ctx = make_context(candidates, faculty, panels)
+    optimised = run(ctx, "optimized")
+    stats = optimised.statistics
+    assert stats["final_scheduled"] >= stats["seed_scheduled"]
+    # Equal counts must not come at the cost of a worse score.
+    if stats["final_scheduled"] == stats["seed_scheduled"]:
+        assert stats["final_score"] >= stats["seed_score"]
+
+
+def test_optimised_matches_or_beats_the_other_algorithms(simple_setup):
+    candidates, faculty, panels = simple_setup
+    baseline = [run(make_context(candidates, faculty, panels), name)
+                for name in ("greedy", "backtracking")]
+    optimised = run(make_context(candidates, faculty, panels), "optimized")
+    best = max((r.scheduled_count, round(r.total_score, 3)) for r in baseline)
+    assert (optimised.scheduled_count, round(optimised.total_score, 3)) >= best
+
+
+def test_optimised_reports_its_improvement_deltas(simple_setup):
+    """The run must explain what the optimisation actually changed."""
+    candidates, faculty, panels = simple_setup
+    result = run(make_context(candidates, faculty, panels), "optimized")
+    for key in ("seed_scheduled", "final_scheduled", "scheduled_gain",
+                "score_gain", "improvement_passes", "insertion_moves",
+                "relocation_moves", "swap_moves"):
+        assert key in result.statistics, key
+
+
+def test_optimised_keeps_a_scarce_slot_conflict_free():
+    """Two candidates, one usable slot: the extra one is reported, not dropped."""
+    window = {DAY1: [iv("09:00", "09:30")]}
+    faculty = [make_faculty(1, "A", window), make_faculty(2, "B", window)]
+    panels = [make_panel(1, [1, 2])]
+    candidates = [make_candidate(10), make_candidate(11)]
+    result = run(make_context(candidates, faculty, panels), "optimized")
+    assert result.scheduled_count == 1
+    assert len(result.unscheduled) == 1
+    assert result.conflicts == []
+    assert result.unscheduled[0].reason

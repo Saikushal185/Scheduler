@@ -32,6 +32,46 @@ def import_file(db, path: Path) -> dict:
     return service.import_upload(upload)
 
 
+DEMO_PASSWORD = "demo1234"
+
+
+def seed_demo_accounts(db) -> list[tuple[str, str, str]]:
+    """One linked login per role so the restrictions can be tried immediately."""
+    from app.core.security import hash_password
+    from app.models.enums import UserRole
+    from app.repositories import (CandidateRepository, FacultyRepository,
+                                  UserRepository)
+
+    users = UserRepository(db)
+    created: list[tuple[str, str, str]] = []
+
+    faculty = FacultyRepository(db).all()
+    if faculty:
+        member = faculty[0]
+        email = f"faculty.demo@{'institute.edu'}"
+        if users.by_email(email) is None and users.by_link(faculty_id=member.id) is None:
+            users.create(email=email, full_name=f"{member.faculty_name} (demo login)",
+                         hashed_password=hash_password(DEMO_PASSWORD),
+                         role=UserRole.FACULTY, faculty_id=member.id)
+        created.append(("FACULTY", email, DEMO_PASSWORD))
+
+    candidates = CandidateRepository(db).all()
+    if candidates:
+        candidate = candidates[0]
+        email = "student.demo@example.com"
+        if (users.by_email(email) is None
+                and users.by_link(candidate_id=candidate.id) is None):
+            users.create(email=email,
+                         full_name=f"{candidate.candidate_name} (demo login)",
+                         hashed_password=hash_password(DEMO_PASSWORD),
+                         role=UserRole.STUDENT, candidate_id=candidate.id)
+        created.append(("STUDENT", email, DEMO_PASSWORD))
+
+    db.flush()
+    logger.info("Demo accounts ready: %s", ", ".join(e for _, e, _ in created))
+    return created
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the interview system")
     parser.add_argument("--reset", action="store_true",
@@ -80,9 +120,13 @@ def main() -> None:
                         evaluation_result["total_created"],
                         evaluation_result["total_updated"])
 
-    print("\nSeeding complete. Sign in with the bootstrap administrator:")
-    print("  email:    admin@example.com")
-    print("  password: admin123")
+        demo = seed_demo_accounts(db)
+
+    print("\nSeeding complete. Demo sign-ins (one per role):")
+    print(f"  ADMIN     admin@example.com / admin123")
+    for role, email, password in demo:
+        print(f"  {role:<9} {email} / {password}")
+    print("\nEach demo account below ADMIN is restricted to its own data.")
 
 
 if __name__ == "__main__":
