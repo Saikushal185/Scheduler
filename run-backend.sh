@@ -8,4 +8,4 @@ if [ ! -x .venv/bin/python ]; then
 fi
 echo "Starting the backend on http://localhost:8000  (API docs: /docs)"
 echo "Press Ctrl+C to stop."
-exec .venv/bin/python -m uvicorn app.main:app --reload --port 8000
+exec .venv/bin/python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

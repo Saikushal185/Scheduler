@@ -8,5 +8,5 @@ if not exist .venv\Scripts\python.exe (
 )
 echo Starting the backend on http://localhost:8000  (API docs: /docs)
 echo Press Ctrl+C to stop.
-.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 pause
