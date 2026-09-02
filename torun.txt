@@ -1,0 +1,600 @@
+================================================================================
+HOW TO RUN
+Automated Interview Scheduling and Evaluation Management System
+
+Works on Windows, macOS and Linux.
+================================================================================
+
+Login for the web dashboard (created automatically the first time it starts):
+
+    email:    admin@example.com
+    password: admin123
+
+Once running:
+
+    Web dashboard   http://localhost:3000
+    API docs        http://localhost:8000/docs
+
+Throughout this file, PROJECT FOLDER means the folder that contains this
+torun.txt file (it also contains "backend", "frontend" and "samples").
+
+    Windows example:  C:\Users\YourName\Desktop\TA_2
+    macOS example:    /Users/YourName/Desktop/TA_2
+
+
+================================================================================
+CONTENTS
+================================================================================
+
+    1.  What you need to install
+    2.  Fastest way to start (setup scripts)
+    3.  Manual setup and run - WINDOWS
+    4.  Manual setup and run - macOS / LINUX
+    5.  Docker option (any OS)
+    6.  Stopping the servers
+    7.  Sample data - loading and resetting
+    8.  A short tour of the app
+    9.  Running the tests
+   10.  Using PostgreSQL instead of SQLite
+   11.  Troubleshooting
+   12.  If you received this project from someone else - READ THIS
+   13.  Where things are
+
+
+================================================================================
+1. WHAT YOU NEED TO INSTALL
+================================================================================
+
+    Python 3.12 or 3.13     https://www.python.org/downloads/
+    Node.js 20 or newer     https://nodejs.org/   (22 LTS recommended)
+
+IMPORTANT - Python version:
+    Use Python 3.12 or 3.13. Do NOT use Python 3.14 - the data libraries
+    (pandas / numpy) have no ready-made packages for it yet and the install
+    will fail while trying to compile them.
+
+WINDOWS INSTALL NOTES:
+    - When installing Python, TICK the box "Add python.exe to PATH" on the
+      first screen of the installer. This is the single most common thing
+      people miss.
+    - Install Node.js with the standard installer, accepting the defaults.
+    - After installing either one, CLOSE and REOPEN any Command Prompt or
+      PowerShell window so it picks up the new PATH.
+    - Check both are working:
+          python --version
+          node --version
+
+macOS INSTALL NOTES:
+    - With Homebrew:  brew install python@3.13 node
+    - Check:          python3 --version   and   node --version
+
+Nothing else is required. A database server is NOT needed - the app uses a
+built-in SQLite file by default. PostgreSQL is optional (sections 5 and 10).
+
+
+================================================================================
+2. FASTEST WAY TO START (setup scripts)
+================================================================================
+
+Scripts are included for both platforms. They check your Python and Node
+versions, install everything and load the sample data.
+
+-------------------------------- WINDOWS ---------------------------------
+
+    1.  Open the PROJECT FOLDER in File Explorer.
+
+    2.  Double-click            setup.bat
+        Wait for it to finish (a few minutes - it downloads packages).
+        It ends with "Setup finished."
+
+    3.  Double-click            run-backend.bat
+        Leave that window open.
+
+    4.  Double-click            run-frontend.bat
+        Leave that window open too.
+
+    5.  Open http://localhost:3000 in your browser and sign in.
+
+    If double-clicking a .bat file closes instantly, open Command Prompt in
+    the project folder and run it from there so you can read the error:
+        cd C:\path\to\PROJECT FOLDER
+        setup.bat
+
+----------------------------- macOS / LINUX ------------------------------
+
+    Open Terminal:
+
+        cd "/path/to/PROJECT FOLDER"
+        chmod +x setup.sh run-backend.sh run-frontend.sh   (first time only)
+        ./setup.sh
+
+    Then, in one terminal:
+
+        ./run-backend.sh
+
+    And in a second terminal:
+
+        ./run-frontend.sh
+
+    Open http://localhost:3000 and sign in.
+
+If you prefer to do it by hand, or a script fails, use section 3 (Windows)
+or section 4 (macOS / Linux) instead - they do exactly the same thing.
+
+
+================================================================================
+3. MANUAL SETUP AND RUN - WINDOWS
+================================================================================
+
+Use Command Prompt (cmd) or PowerShell. Both work. Where the commands differ,
+both versions are given.
+
+--------------------------- 3a. ONE-TIME SETUP ---------------------------
+
+Open a terminal in the PROJECT FOLDER. (Tip: in File Explorer, type "cmd" in
+the address bar and press Enter to open a prompt already in that folder.)
+
+    STEP 1 - go to the backend folder
+
+        cd backend
+
+    STEP 2 - create the Python virtual environment
+
+        python -m venv .venv
+
+        If "python" is not recognised, try:   py -3 -m venv .venv
+
+    STEP 3 - install the backend packages (takes a few minutes)
+
+        .venv\Scripts\python.exe -m pip install --upgrade pip
+        .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+
+        NOTE: You do NOT need to "activate" the environment. Calling
+        .venv\Scripts\python.exe directly always works and avoids the
+        PowerShell "running scripts is disabled on this system" error.
+
+    STEP 4 - load the sample data and run a first schedule
+
+        .venv\Scripts\python.exe -m scripts.seed --reset
+
+        You should see lines ending with:
+            Scheduling run RUN-xxxxxxxx: 30 scheduled, 0 unscheduled
+            Seeding complete.
+
+    STEP 5 - install the frontend packages
+
+        cd ..\frontend
+        copy .env.local.example .env.local
+        npm install
+
+    Setup is done. You never have to repeat these steps.
+
+------------------------- 3b. RUNNING IT EACH TIME ------------------------
+
+You need TWO terminal windows, both open at the same time.
+
+    ---- WINDOW 1 - BACKEND ----
+
+        cd "C:\path\to\PROJECT FOLDER\backend"
+        .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+        Wait for:   Uvicorn running on http://127.0.0.1:8000
+        Leave this window open.
+
+    ---- WINDOW 2 - FRONTEND ----
+
+        cd "C:\path\to\PROJECT FOLDER\frontend"
+        npm run dev
+
+        Wait for:   Local: http://localhost:3000
+        Leave this window open.
+
+    ---- THEN ----
+
+        Open http://localhost:3000 and sign in with
+        admin@example.com / admin123
+
+The first time you run either server, Windows Defender Firewall may ask for
+permission. Allow access on private networks (or click Cancel - the app still
+works locally either way).
+
+Notes:
+    - "npm run dev" is for normal use; it reloads when files change.
+    - For the optimised production build, use instead:
+          npm run build
+          npm run start
+
+
+================================================================================
+4. MANUAL SETUP AND RUN - macOS / LINUX
+================================================================================
+
+--------------------------- 4a. ONE-TIME SETUP ---------------------------
+
+    cd "/path/to/PROJECT FOLDER/backend"
+    python3.13 -m venv .venv
+    .venv/bin/python -m pip install --upgrade pip
+    .venv/bin/python -m pip install -r requirements-dev.txt
+    .venv/bin/python -m scripts.seed --reset
+
+    cd ../frontend
+    cp .env.local.example .env.local
+    npm install
+
+    (If python3.13 is not present, use python3.12. Check the version first
+     with "python3 --version" - it must not be 3.14.)
+
+------------------------- 4b. RUNNING IT EACH TIME ------------------------
+
+Two terminals:
+
+    ---- TERMINAL 1 - BACKEND ----
+
+        cd "/path/to/PROJECT FOLDER/backend"
+        .venv/bin/python -m uvicorn app.main:app --reload --port 8000
+
+    ---- TERMINAL 2 - FRONTEND ----
+
+        cd "/path/to/PROJECT FOLDER/frontend"
+        npm run dev
+
+    Then open http://localhost:3000
+
+
+================================================================================
+5. DOCKER OPTION (any OS)
+================================================================================
+
+This runs PostgreSQL, the backend and the frontend in containers. You do not
+need Python or Node installed - only Docker Desktop.
+
+    Install Docker Desktop:  https://www.docker.com/products/docker-desktop/
+    (On Windows it needs WSL2, which its installer sets up for you.)
+
+Then, in a terminal in the PROJECT FOLDER:
+
+    docker compose up --build
+
+Wait until the logs settle, then load the sample data in a second terminal:
+
+    docker compose exec backend python -m scripts.seed --reset
+
+URLs:
+
+    Web dashboard   http://localhost:3000
+    API docs        http://localhost:8000/docs
+    PostgreSQL      localhost:5432   (user / password / database: interview)
+
+To stop:
+
+    docker compose down             keeps the database
+    docker compose down -v          also deletes the database volume
+
+
+================================================================================
+6. STOPPING THE SERVERS
+================================================================================
+
+Normal way (all platforms):
+    Click on each server window and press  Ctrl+C.
+    Closing the window also works.
+
+If a port is still busy afterwards:
+
+    ---- WINDOWS ----
+
+        netstat -ano | findstr :8000
+        netstat -ano | findstr :3000
+
+        The last number on each line is the process id (PID). Then:
+
+        taskkill /PID 12345 /F
+
+    ---- macOS / LINUX ----
+
+        lsof -i :8000
+        lsof -i :3000
+        kill <pid>
+
+        Or stop them by name:
+
+        pkill -f "uvicorn app.main:app"
+        pkill -f "next dev"
+
+
+================================================================================
+7. SAMPLE DATA - LOADING AND RESETTING
+================================================================================
+
+Run these from the "backend" folder.
+
+    Full reset - wipes the database, imports the sample workbook, calculates
+    free slots, runs the scheduler, confirms it, imports the evaluations:
+
+        Windows:        .venv\Scripts\python.exe -m scripts.seed --reset
+        macOS / Linux:  .venv/bin/python -m scripts.seed --reset
+
+    Import the data but leave everything UNSCHEDULED, so you can run the
+    scheduler yourself from the "Automated Scheduler" page:
+
+        Windows:        .venv\Scripts\python.exe -m scripts.seed --reset --no-schedule
+        macOS / Linux:  .venv/bin/python -m scripts.seed --reset --no-schedule
+
+    Skip the sample evaluation scores:
+
+        ... -m scripts.seed --reset --no-evaluations
+
+    Regenerate the sample Excel files (their dates are always set to the
+    coming week, so the data stays relevant):
+
+        Windows:        .venv\Scripts\python.exe -m scripts.generate_samples
+        macOS / Linux:  .venv/bin/python -m scripts.generate_samples
+
+The sample files are in the "samples" folder:
+
+    interview_data.xlsx       6 sheets - candidates, faculty, availability,
+                              busy slots, panel groups, interview settings
+    evaluations.xlsx          7-metric scores for 20 candidates
+    candidates.csv            example of the CSV upload path
+    invalid_candidates.xlsx   deliberately broken, so you can see the
+                              validation errors the upload page reports
+
+
+================================================================================
+8. A SHORT TOUR OF THE APP
+================================================================================
+
+1.  Sign in at http://localhost:3000
+
+2.  DASHBOARD
+    Summary cards, upcoming interviews, unscheduled candidates, conflict
+    alerts and faculty availability - all computed from live data.
+
+3.  DATA / EXCEL UPLOAD
+    Drag in samples/interview_data.xlsx and press "Validate & import".
+    Then try samples/invalid_candidates.xlsx to see per-row validation
+    errors. The "Accepted columns" tab lists every column name the importer
+    understands, including alternative spellings.
+
+4.  FREE SLOTS
+    Availability minus busy time minus booked interviews, drawn as a
+    timeline per faculty per day. "Recalculate" recomputes them.
+
+5.  PANEL GROUPS
+    The calendar icon on a panel shows when the whole panel is free.
+    "Find alternatives" shows which other panel could cover a given slot.
+
+6.  AUTOMATED SCHEDULER
+    Press "Generate schedule" for a preview: scheduled candidates with the
+    priorities each slot satisfied, unscheduled candidates each with a
+    reason, and a conflict check. Nothing is saved until you press
+    "Confirm schedule".
+    Try switching the algorithm between "backtracking" and "greedy".
+    Change a rule's priority (for example set "Candidate preferred date"
+    to HARD) and run again to see the behaviour change.
+
+7.  INTERVIEW SCHEDULE
+    Calendar view (day / week / month) and a table view, filterable by
+    candidate, faculty, panel, date, department and status.
+    Click an interview to reschedule it, change the panel or its members,
+    lock it, mark it completed or cancel it.
+    Try moving one onto a slot that is already taken - the change is
+    rejected and the exact clash is explained.
+    "Mark faculty unavailable" blocks time and flags affected interviews.
+
+8.  EVALUATION MANAGEMENT
+    Upload samples/evaluations.xlsx, or enter scores by hand.
+    "Rankings" shows the weighted results - click a row for the radar
+    profile. "Metric configuration" lets you rename metrics and change
+    weights; every stored evaluation is rescored immediately.
+
+9.  ANALYTICS & REPORTS
+    Workload, slot utilisation, scheduling efficiency, metric averages,
+    score distribution and rankings. "Export report" downloads the full
+    report as JSON.
+
+
+================================================================================
+9. RUNNING THE TESTS
+================================================================================
+
+90 backend tests: interval maths, the scheduling engine, and a full
+end-to-end HTTP test from upload through to analytics.
+
+    From the "backend" folder:
+
+        Windows:        .venv\Scripts\python.exe -m pytest -q
+        macOS / Linux:  .venv/bin/python -m pytest -q
+
+    Just the scheduling engine, with test names shown:
+
+        Windows:        .venv\Scripts\python.exe -m pytest tests/test_scheduler.py -v
+        macOS / Linux:  .venv/bin/python -m pytest tests/test_scheduler.py -v
+
+Frontend type check and production build, from the "frontend" folder:
+
+        npm run typecheck
+        npm run build
+
+
+================================================================================
+10. USING POSTGRESQL INSTEAD OF SQLITE
+================================================================================
+
+By default the backend stores everything in a single SQLite file
+(backend/interview_system.db) so nothing has to be installed. To use
+PostgreSQL instead, create a database and set DATABASE_URL before starting.
+
+    ---- WINDOWS (PowerShell) ----
+
+        $env:DATABASE_URL = "postgresql+psycopg://postgres:YOURPASSWORD@localhost:5432/interview_scheduler"
+        cd backend
+        .venv\Scripts\python.exe -m scripts.seed --reset
+        .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+    ---- WINDOWS (Command Prompt) ----
+
+        set DATABASE_URL=postgresql+psycopg://postgres:YOURPASSWORD@localhost:5432/interview_scheduler
+        cd backend
+        .venv\Scripts\python.exe -m scripts.seed --reset
+        .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+    ---- macOS / LINUX ----
+
+        createdb interview_scheduler
+        cd backend
+        export DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/interview_scheduler"
+        .venv/bin/python -m scripts.seed --reset
+        .venv/bin/python -m uvicorn app.main:app --reload --port 8000
+
+The environment variable only lasts for that terminal session. To make it
+permanent, copy backend/.env.example to backend/.env and set DATABASE_URL
+there. The tables are created automatically on startup.
+
+
+================================================================================
+11. TROUBLESHOOTING
+================================================================================
+
+--- "python is not recognized as an internal or external command" (Windows)
+    Python is not on your PATH. Either reinstall Python with
+    "Add python.exe to PATH" ticked, or use the launcher instead:
+        py -3 -m venv .venv
+    Remember to close and reopen the terminal after installing Python.
+
+--- "npm is not recognized" (Windows)
+    Node.js is not installed, or the terminal was open before you installed
+    it. Close the terminal, open a new one, and check with: node --version
+
+--- pip install fails with long red errors about numpy, pandas, or
+    "Microsoft Visual C++ 14.0 or greater is required"
+    You are almost certainly on Python 3.14. Check with:
+        python --version
+    Install Python 3.12 or 3.13, delete the backend\.venv folder, and repeat
+    the setup. Those versions install ready-made packages and need no
+    compiler at all.
+
+--- PowerShell: "running scripts is disabled on this system"
+    You tried to activate the virtual environment. You do not need to.
+    Just call the interpreter directly:
+        .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+--- "Could not reach the API. Is the backend running on port 8000?"
+    (shown on the login page)
+    The backend window is not running, or it is on a different port.
+    Check by opening http://localhost:8000/health in a browser - it should
+    show {"status":"ok",...}.
+    Also check that frontend/.env.local contains:
+        NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    If you change that file, restart the frontend.
+
+--- Port 3000 or 8000 is already in use
+    Something else is using it. Either free the port (section 6) or run on
+    a different one:
+        .venv\Scripts\python.exe -m uvicorn app.main:app --port 8001
+        npm run dev -- -p 3001
+    If you move the BACKEND port, you must also update
+    frontend/.env.local to match, then restart the frontend.
+
+--- The scheduler says "No active panel group has available faculty members"
+    There are no free slots to schedule into. Import faculty availability,
+    then press "Recalculate" on the Free Slots page. Also check that the
+    date range on the Settings page overlaps the dates in your data.
+
+--- Some candidates come back unscheduled
+    That is a real result, not a bug - a reason is shown for each one (no
+    free faculty in the window, availability that does not overlap any
+    panel's free time, or a faculty daily limit reached). To schedule more:
+    widen the date range, lower the panel minimum size, or reduce a rule's
+    priority on the Automated Scheduler page.
+
+--- A reschedule is rejected with a red conflict message
+    That is the conflict checker doing its job. The message names the exact
+    clash (double booking, or too little break between interviews). Choose
+    another slot, or press "Apply anyway" to force it - the interview is
+    then flagged CONFLICT so you can see it needs attention.
+
+--- An upload fails validation
+    The error names the sheet, row, column and value. Compare your column
+    headers with the "Accepted columns" tab on the Data / Excel Upload page.
+    Nothing is imported unless every sheet passes.
+
+--- npm install fails with a path or permission error (Windows)
+    Try running the terminal as Administrator, and make sure the project
+    folder is not inside OneDrive or a very deeply nested path. Antivirus
+    software occasionally blocks npm as well.
+
+--- I want to start completely fresh
+    From the "backend" folder, delete the database file and reseed:
+        Windows:        del interview_system.db
+                        .venv\Scripts\python.exe -m scripts.seed --reset
+        macOS / Linux:  rm -f interview_system.db
+                        .venv/bin/python -m scripts.seed --reset
+
+
+================================================================================
+12. IF YOU RECEIVED THIS PROJECT FROM SOMEONE ELSE - READ THIS
+================================================================================
+
+Some folders CANNOT be copied between computers, and definitely not between
+macOS and Windows. If the folder you received contains any of these, DELETE
+them before setting up:
+
+    backend/.venv           Python environment - contains absolute paths and
+                            operating-system-specific binaries
+    frontend/node_modules   Node packages - contains compiled binaries built
+                            for the original machine
+    frontend/.next          build output
+    backend/*.db            the previous machine's database (optional -
+                            delete it if you want to start clean)
+
+After deleting them, follow section 2 (setup script) or sections 3 / 4
+(manual). Everything is rebuilt for your machine.
+
+IF YOU ARE THE ONE SHARING THE PROJECT:
+    Zip the folder WITHOUT those directories. They are large, they will not
+    work on the other machine, and leaving them out makes the zip far
+    smaller. A .gitignore that already excludes them is included, so if you
+    share via Git they are never committed in the first place.
+
+    macOS / Linux one-liner to build a clean zip next to the project folder:
+
+        cd "/path/to/PROJECT FOLDER"
+        zip -r ../interview-system.zip . \
+            -x "backend/.venv/*" "frontend/node_modules/*" \
+               "frontend/.next/*" "backend/*.db" "**/__pycache__/*" \
+               "backend/.pytest_cache/*" "backend/uploads/*" "**/.DS_Store"
+
+    On Windows, use 7-Zip or File Explorer's "Send to > Compressed folder"
+    after deleting the four folders listed above.
+
+
+================================================================================
+13. WHERE THINGS ARE
+================================================================================
+
+    README.md                    full documentation - architecture, the
+                                 scheduling algorithm, Excel formats,
+                                 complete API reference
+    torun.txt                    this file
+    setup.sh / setup.bat         one-time setup
+    run-backend.sh  / .bat       starts the API server
+    run-frontend.sh / .bat       starts the dashboard
+    docker-compose.yml           PostgreSQL + backend + frontend
+    samples/                     sample Excel and CSV input files
+
+    backend/app/scheduling/      the scheduling engine (deliberately contains
+                                 no database or web code, so it is easy to
+                                 test and to replace)
+    backend/app/services/        Excel import, free slots, panels, scheduling,
+                                 interviews, evaluation, analytics
+    backend/app/api/v1/routers/  the REST endpoints
+    backend/scripts/seed.py      sample data loader
+    backend/tests/               90 tests
+    backend/.env.example         backend settings you can override
+
+    frontend/app/(app)/          the 12 dashboard pages
+    frontend/lib/api.ts          API client
+    frontend/.env.local.example  frontend settings (the API address)
+
+================================================================================

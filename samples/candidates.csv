@@ -1,0 +1,31 @@
+candidate_id,candidate_name,email,phone,department,position,preferred_date,preferred_time,preferred_panel,priority,notes,availability
+CAND001,Ishita Iyer,candidate1@example.com,9876500000,Computer Science,Teaching Assistant,2026-09-07,14:30,PANEL1,2,,2026-09-07 09:00-13:00; 2026-09-08 14:00-17:00
+CAND002,Kabir Nair,candidate2@example.com,9876500001,Electronics,Research Scholar,2026-09-08,10:00,PANEL2,2,,
+CAND003,Meera Reddy,candidate3@example.com,9876500002,Mechanical,Research Scholar,2026-09-09,14:30,PANEL3,2,,
+CAND004,Rohan Gupta,candidate4@example.com,9876500003,Mathematics,Teaching Assistant,2026-09-10,10:00,PANEL4,2,,2026-09-10 09:00-13:00; 2026-09-11 14:00-17:00
+CAND005,Sara Bose,candidate5@example.com,9876500004,Computer Science,Research Scholar,2026-09-11,14:30,PANEL1,2,,
+CAND006,Aditya Kapoor,candidate6@example.com,9876500005,Electronics,Research Scholar,2026-09-07,10:00,PANEL2,1,,
+CAND007,Nisha Menon,candidate7@example.com,9876500006,Mechanical,Teaching Assistant,2026-09-08,14:30,PANEL3,1,,2026-09-08 09:00-13:00; 2026-09-09 14:00-17:00
+CAND008,Karan Rao,candidate8@example.com,9876500007,Mathematics,Research Scholar,2026-09-09,10:00,PANEL4,1,,
+CAND009,Priya Joshi,candidate9@example.com,9876500008,Computer Science,Research Scholar,2026-09-10,14:30,PANEL1,1,,
+CAND010,Vikram Desai,candidate10@example.com,9876500009,Electronics,Teaching Assistant,2026-09-11,10:00,PANEL2,1,,2026-09-11 09:00-13:00; 2026-09-07 14:00-17:00
+CAND011,Tara Sharma,candidate11@example.com,9876500010,Mechanical,Research Scholar,2026-09-07,14:30,PANEL3,1,,
+CAND012,Rahul Verma,candidate12@example.com,9876500011,Mathematics,Research Scholar,2026-09-08,10:00,PANEL4,1,,
+CAND013,Neha Iyer,candidate13@example.com,9876500012,Computer Science,Teaching Assistant,2026-09-09,14:30,PANEL1,0,,2026-09-09 09:00-13:00; 2026-09-10 14:00-17:00
+CAND014,Siddharth Nair,candidate14@example.com,9876500013,Electronics,Research Scholar,2026-09-10,10:00,PANEL2,0,,
+CAND015,Kavya Reddy,candidate15@example.com,9876500014,Mechanical,Research Scholar,2026-09-11,14:30,PANEL3,0,,
+CAND016,Manish Gupta,candidate16@example.com,9876500015,Mathematics,Teaching Assistant,2026-09-07,10:00,PANEL4,0,,2026-09-07 09:00-13:00; 2026-09-08 14:00-17:00
+CAND017,Pooja Bose,candidate17@example.com,9876500016,Computer Science,Research Scholar,2026-09-08,14:30,PANEL1,0,,
+CAND018,Aryan Kapoor,candidate18@example.com,9876500017,Electronics,Research Scholar,2026-09-09,10:00,PANEL2,0,,
+CAND019,Sneha Menon,candidate19@example.com,9876500018,Mechanical,Teaching Assistant,2026-09-10,14:30,PANEL3,0,,2026-09-10 09:00-13:00; 2026-09-11 14:00-17:00
+CAND020,Nikhil Rao,candidate20@example.com,9876500019,Mathematics,Research Scholar,2026-09-11,10:00,PANEL4,0,,
+CAND021,Divya Joshi,candidate21@example.com,9876500020,Computer Science,Research Scholar,2026-09-07,14:30,PANEL1,0,,
+CAND022,Rajat Desai,candidate22@example.com,9876500021,Electronics,Teaching Assistant,2026-09-08,10:00,PANEL2,0,,2026-09-08 09:00-13:00; 2026-09-09 14:00-17:00
+CAND023,Anjali Sharma,candidate23@example.com,9876500022,Mechanical,Research Scholar,2026-09-09,14:30,PANEL3,0,,
+CAND024,Varun Verma,candidate24@example.com,9876500023,Mathematics,Research Scholar,2026-09-10,10:00,PANEL4,0,,
+CAND025,Riya Iyer,candidate25@example.com,9876500024,Computer Science,Teaching Assistant,2026-09-11,14:30,PANEL1,0,,2026-09-11 09:00-13:00; 2026-09-07 14:00-17:00
+CAND026,Akash Nair,candidate26@example.com,9876500025,Electronics,Research Scholar,2026-09-07,10:00,PANEL2,0,,
+CAND027,Shreya Reddy,candidate27@example.com,9876500026,Mechanical,Research Scholar,2026-09-08,14:30,PANEL3,0,,
+CAND028,Dev Gupta,candidate28@example.com,9876500027,Mathematics,Teaching Assistant,2026-09-09,10:00,PANEL4,0,,2026-09-09 09:00-13:00; 2026-09-10 14:00-17:00
+CAND029,Isha Bose,candidate29@example.com,9876500028,Computer Science,Research Scholar,2026-09-10,14:30,PANEL1,0,,
+CAND030,Yash Kapoor,candidate30@example.com,9876500029,Electronics,Research Scholar,2026-09-11,10:00,PANEL2,0,,
