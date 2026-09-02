@@ -1,16 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import { PageMetaProvider } from "@/components/layout/page";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { LoadingState } from "@/components/ui/feedback";
-import { getToken } from "@/lib/api";
+import { canAccess, homeFor } from "@/lib/access";
+import { getStoredUser, getToken } from "@/lib/api";
+import type { User } from "@/lib/types";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [meta, setMeta] = React.useState<{
@@ -24,8 +27,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace("/login");
       return;
     }
+    // Bounce to the caller's own home rather than rendering a page whose every
+    // request would come back 403.
+    const role = getStoredUser<User>()?.role;
+    if (!canAccess(role, pathname)) {
+      router.replace(homeFor(role));
+      return;
+    }
     setReady(true);
-  }, [router]);
+  }, [router, pathname]);
 
   const value = React.useMemo(() => ({ setMeta }), []);
 

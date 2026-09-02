@@ -8,6 +8,7 @@ import {
   Clock4,
   LayoutDashboard,
   Settings as SettingsIcon,
+  ShieldCheck,
   Sparkles,
   Timer,
   Upload,
@@ -16,10 +17,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import * as React from "react";
 
+import { canAccess } from "@/lib/access";
+import { getStoredUser } from "@/lib/api";
+import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const NAV = [
+  { section: "Me", items: [
+    { href: "/my-schedule", label: "My Schedule", icon: CalendarDays },
+    { href: "/my-interview", label: "My Interview", icon: CalendarDays },
+  ]},
   { section: "Overview", items: [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/upload", label: "Data / Excel Upload", icon: Upload },
@@ -38,12 +47,26 @@ const NAV = [
   { section: "Results", items: [
     { href: "/evaluations", label: "Evaluation Management", icon: ClipboardCheck },
     { href: "/analytics", label: "Analytics & Reports", icon: BarChart3 },
+  ]},
+  { section: "Administration", items: [
+    { href: "/users", label: "User Accounts", icon: ShieldCheck },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
   ]},
 ];
 
 export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const role = getStoredUser<User>()?.role;
+
+  // Hide what this role cannot open, and drop sections left empty by that.
+  const nav = React.useMemo(
+    () =>
+      NAV.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => canAccess(role, item.href)),
+      })).filter((group) => group.items.length > 0),
+    [role],
+  );
 
   return (
     <aside
@@ -63,7 +86,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate?: () =
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {NAV.map((group) => (
+        {nav.map((group) => (
           <div key={group.section} className="mb-5">
             <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               {group.section}

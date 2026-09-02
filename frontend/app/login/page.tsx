@@ -7,6 +7,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/feedback";
 import { Field, Input } from "@/components/ui/input";
+import { homeFor } from "@/lib/access";
 import { ApiError, api, setSession } from "@/lib/api";
 import type { LoginResponse } from "@/lib/types";
 
@@ -24,7 +25,8 @@ export default function LoginPage() {
     try {
       const result = await api.post<LoginResponse>("/auth/login", { email, password });
       setSession(result.access_token, result.user);
-      router.push("/dashboard");
+      // Each role has a different landing page - a student has no dashboard.
+      router.push(homeFor(result.user.role));
     } catch (err) {
       setError(
         err instanceof ApiError
