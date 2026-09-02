@@ -1,0 +1,109 @@
+"""Enumerations shared by models, schemas and the scheduling engine."""
+from __future__ import annotations
+
+from enum import Enum
+
+
+class StrEnum(str, Enum):
+    def __str__(self) -> str:  # pragma: no cover - convenience
+        return self.value
+
+
+class UserRole(StrEnum):
+    ADMIN = "ADMIN"
+    COORDINATOR = "COORDINATOR"
+    FACULTY = "FACULTY"
+    VIEWER = "VIEWER"
+
+
+class AvailabilityStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+    TENTATIVE = "TENTATIVE"
+
+
+class BusySlotSource(StrEnum):
+    MANUAL = "MANUAL"
+    IMPORT = "IMPORT"
+    INTERVIEW = "INTERVIEW"
+    EXTERNAL = "EXTERNAL"
+
+
+class CandidateStatus(StrEnum):
+    PENDING = "PENDING"
+    SCHEDULED = "SCHEDULED"
+    UNSCHEDULED = "UNSCHEDULED"
+    COMPLETED = "COMPLETED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class InterviewStatus(StrEnum):
+    SCHEDULED = "SCHEDULED"
+    PENDING = "PENDING"
+    CONFLICT = "CONFLICT"
+    UNSCHEDULED = "UNSCHEDULED"
+    RESCHEDULED = "RESCHEDULED"
+    CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"
+
+
+class ConstraintPriority(StrEnum):
+    """Priority bands used by the flexible scheduling rules."""
+
+    HARD = "HARD"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    FLEXIBLE = "FLEXIBLE"
+
+
+class ConstraintType(StrEnum):
+    FACULTY_UNAVAILABLE = "FACULTY_UNAVAILABLE"
+    CANDIDATE_UNAVAILABLE = "CANDIDATE_UNAVAILABLE"
+    CANDIDATE_PREFERRED_DATE = "CANDIDATE_PREFERRED_DATE"
+    CANDIDATE_PREFERRED_TIME = "CANDIDATE_PREFERRED_TIME"
+    PREFERRED_PANEL = "PREFERRED_PANEL"
+    REQUIRED_PANEL = "REQUIRED_PANEL"
+    PANEL_SIZE = "PANEL_SIZE"
+    MAX_INTERVIEWS_PER_FACULTY = "MAX_INTERVIEWS_PER_FACULTY"
+    BREAK_BETWEEN_INTERVIEWS = "BREAK_BETWEEN_INTERVIEWS"
+    DEPARTMENT_MATCH = "DEPARTMENT_MATCH"
+    EARLIEST_SLOT = "EARLIEST_SLOT"
+    LOAD_BALANCE = "LOAD_BALANCE"
+    BLOCKED_PERIOD = "BLOCKED_PERIOD"
+
+
+class ScheduleRunStatus(StrEnum):
+    PREVIEW = "PREVIEW"
+    CONFIRMED = "CONFIRMED"
+    DISCARDED = "DISCARDED"
+
+
+class UploadStatus(StrEnum):
+    PENDING = "PENDING"
+    VALIDATED = "VALIDATED"
+    IMPORTED = "IMPORTED"
+    FAILED = "FAILED"
+
+
+class DatasetType(StrEnum):
+    CANDIDATES = "CANDIDATES"
+    FACULTY = "FACULTY"
+    FACULTY_AVAILABILITY = "FACULTY_AVAILABILITY"
+    FACULTY_BUSY_SLOTS = "FACULTY_BUSY_SLOTS"
+    PANEL_GROUPS = "PANEL_GROUPS"
+    INTERVIEW_SETTINGS = "INTERVIEW_SETTINGS"
+    EVALUATIONS = "EVALUATIONS"
+
+
+class HistoryAction(StrEnum):
+    CREATED = "CREATED"
+    AUTO_SCHEDULED = "AUTO_SCHEDULED"
+    RESCHEDULED = "RESCHEDULED"
+    PANEL_CHANGED = "PANEL_CHANGED"
+    STATUS_CHANGED = "STATUS_CHANGED"
+    CANCELLED = "CANCELLED"
+    LOCKED = "LOCKED"
+    UNLOCKED = "UNLOCKED"
+    COMPLETED = "COMPLETED"
+    MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
