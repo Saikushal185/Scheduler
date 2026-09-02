@@ -53,13 +53,19 @@ def parse_time(value: object) -> time | None:
     text = re.sub(r"\s+", " ", text)
     for pattern in _TIME_PATTERNS:
         try:
-            return datetime.strptime(text, pattern.upper()).time().replace(
+            return datetime.strptime(text, pattern).time().replace(
                 second=0, microsecond=0)
         except ValueError:
             continue
-    match = re.match(r"^(\d{1,2}):(\d{2})", text)
+    match = re.match(r"^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?", text)
     if match:
         hour, minute = int(match.group(1)), int(match.group(2))
+        meridiem = match.group(3)
+        if meridiem and 1 <= hour <= 12:
+            if meridiem == "PM" and hour != 12:
+                hour += 12
+            elif meridiem == "AM" and hour == 12:
+                hour = 0
         if 0 <= hour < 24 and 0 <= minute < 60:
             return time(hour, minute)
     return None
