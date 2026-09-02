@@ -22,6 +22,8 @@ class SettingsRead(ORMModel):
     allow_weekends: bool
     default_algorithm: str
     organisation_name: str
+    results_published: bool = False
+    results_published_at: _dt.datetime | None = None
 
 
 class SettingsUpdate(BaseModel):
@@ -40,6 +42,7 @@ class SettingsUpdate(BaseModel):
     allow_weekends: bool | None = None
     default_algorithm: str | None = None
     organisation_name: str | None = None
+    results_published: bool | None = None
 
     @model_validator(mode="after")
     def _check(self):

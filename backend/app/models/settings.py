@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, datetime, time
 
-from sqlalchemy import Boolean, Date, Integer, String, Time
+from sqlalchemy import Boolean, Date, DateTime, Integer, String, Time
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -26,7 +26,12 @@ class InterviewSettings(Base, TimestampMixin):
     max_interviews_per_faculty_per_day: Mapped[int] = mapped_column(
         Integer, default=12, nullable=False)
     allow_weekends: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    default_algorithm: Mapped[str] = mapped_column(String(64), default="backtracking",
+    default_algorithm: Mapped[str] = mapped_column(String(64), default="optimized",
                                                    nullable=False)
     organisation_name: Mapped[str] = mapped_column(String(255), default="Institute",
                                                    nullable=False)
+    # Students see their own marks only once an administrator releases them, so a
+    # teacher's in-progress entry is never visible.
+    results_published: Mapped[bool] = mapped_column(Boolean, default=False,
+                                                    nullable=False)
+    results_published_at: Mapped[datetime | None] = mapped_column(DateTime)

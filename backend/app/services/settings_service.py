@@ -1,6 +1,8 @@
 """Global interview settings (singleton row seeded from app configuration)."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from app.core.config import settings as app_settings
@@ -37,8 +39,13 @@ class SettingsService:
 
     def update(self, payload: SettingsUpdate) -> InterviewSettings:
         row = self.get()
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        data = payload.model_dump(exclude_unset=True)
+        for key, value in data.items():
             if value is not None:
                 setattr(row, key, value)
+        # Stamp when results were released so the change is auditable.
+        if "results_published" in data and data["results_published"] is not None:
+            row.results_published_at = (datetime.now()
+                                        if data["results_published"] else None)
         self.db.flush()
         return row
