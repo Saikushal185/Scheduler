@@ -26,11 +26,23 @@ class Evaluator(Protocol):
 
 
 _REGISTRY: dict[ConstraintType, Evaluator] = {}
+# Rules whose outcome changes with the *chosen* faculty.  Everything else depends
+# only on (candidate, panel, day, slot) and can therefore be evaluated once per
+# combination and reused for every placement attempt of that combination.
+_FACULTY_DEPENDENT: set[ConstraintType] = set()
+# Rules that vary with the panel but not the individual faculty chosen.  Split
+# out so they are evaluated once per (candidate, panel) instead of once per slot.
+_PANEL_DEPENDENT: set[ConstraintType] = set()
 
 
-def register(ctype: ConstraintType) -> Callable[[Evaluator], Evaluator]:
+def register(ctype: ConstraintType, *, faculty_dependent: bool = False,
+             panel_dependent: bool = False) -> Callable[[Evaluator], Evaluator]:
     def decorator(fn: Evaluator) -> Evaluator:
         _REGISTRY[ctype] = fn
+        if faculty_dependent:
+            _FACULTY_DEPENDENT.add(ctype)
+        if panel_dependent:
+            _PANEL_DEPENDENT.add(ctype)
         return fn
     return decorator
 
@@ -58,7 +70,7 @@ def _candidate_availability(ctx, constraint, candidate, panel, day, slot, facult
                     else f"Candidate not available on {day} at {slot}")
 
 
-@register(ConstraintType.FACULTY_UNAVAILABLE)
+@register(ConstraintType.FACULTY_UNAVAILABLE, faculty_dependent=True)
 def _faculty_availability(ctx, constraint, candidate, panel, day, slot, faculty_ids):
     blocked = [fid for fid in faculty_ids
                if fid in ctx.faculty and not ctx.faculty[fid].is_free(day, slot)]
@@ -68,7 +80,7 @@ def _faculty_availability(ctx, constraint, candidate, panel, day, slot, faculty_
                     else f"Faculty {blocked} not free in this slot")
 
 
-@register(ConstraintType.PANEL_SIZE)
+@register(ConstraintType.PANEL_SIZE, faculty_dependent=True)
 def _panel_size(ctx, constraint, candidate, panel, day, slot, faculty_ids):
     required = int(constraint.parameters.get("minimum", panel.minimum_panel_size))
     maximum = int(constraint.parameters.get("maximum", panel.maximum_panel_size))
@@ -78,7 +90,7 @@ def _panel_size(ctx, constraint, candidate, panel, day, slot, faculty_ids):
                     f"{count} faculty assigned (required {required}-{maximum})")
 
 
-@register(ConstraintType.REQUIRED_PANEL)
+@register(ConstraintType.REQUIRED_PANEL, panel_dependent=True)
 def _required_panel(ctx, constraint, candidate, panel, day, slot, faculty_ids):
     wanted = constraint.parameters.get("panel_code") or candidate.required_panel_code
     if not wanted:
@@ -140,7 +152,7 @@ def _preferred_time(ctx, constraint, candidate, panel, day, slot, faculty_ids):
                     f"{delta} min from preferred time {preferred:%H:%M}", ratio=ratio)
 
 
-@register(ConstraintType.PREFERRED_PANEL)
+@register(ConstraintType.PREFERRED_PANEL, panel_dependent=True)
 def _preferred_panel(ctx, constraint, candidate, panel, day, slot, faculty_ids):
     wanted = candidate.preferred_panel_code or constraint.parameters.get("panel_code")
     if not wanted:
@@ -151,7 +163,7 @@ def _preferred_panel(ctx, constraint, candidate, panel, day, slot, faculty_ids):
                     else f"Alternative panel {panel.code} used instead of {wanted}")
 
 
-@register(ConstraintType.DEPARTMENT_MATCH)
+@register(ConstraintType.DEPARTMENT_MATCH, faculty_dependent=True)
 def _department_match(ctx, constraint, candidate, panel, day, slot, faculty_ids):
     if not candidate.department:
         return None
@@ -171,7 +183,7 @@ def _earliest_slot(ctx, constraint, candidate, panel, day, slot, faculty_ids):
     dates = ctx.options.dates
     if not dates:
         return None
-    day_index = dates.index(day) if day in dates else len(dates) - 1
+    day_index = ctx.options.date_index(day)
     day_ratio = 1.0 - (day_index / max(1, len(dates)))
     span_start = to_minutes(ctx.options.day_start) if ctx.options.day_start else 0
     span_end = to_minutes(ctx.options.day_end) if ctx.options.day_end else 24 * 60
@@ -182,16 +194,19 @@ def _earliest_slot(ctx, constraint, candidate, panel, day, slot, faculty_ids):
                     f"Compactness score for {day} {slot}", ratio=ratio)
 
 
-def evaluate_static(ctx: SchedulingContext, candidate: CandidateSpec, panel: PanelSpec,
-                    day: date, slot: Interval,
-                    faculty_ids: list[int]) -> tuple[bool, list[ConstraintOutcome], str | None]:
-    """Run every rule that does not depend on other assignments.
-
-    Returns (feasible, outcomes, hard_violation_reason).
-    """
+def _evaluate(ctx: SchedulingContext, candidate: CandidateSpec, panel: PanelSpec,
+              day: date, slot: Interval, faculty_ids: list[int], *,
+              types: set[ConstraintType] | None = None,
+              exclude: set[ConstraintType] | None = None,
+              ) -> tuple[bool, list[ConstraintOutcome], str | None]:
     outcomes: list[ConstraintOutcome] = []
     for constraint in ctx.constraints:
-        evaluator = _REGISTRY.get(constraint.constraint_type)
+        ctype = constraint.constraint_type
+        if types is not None and ctype not in types:
+            continue
+        if exclude is not None and ctype in exclude:
+            continue
+        evaluator = _REGISTRY.get(ctype)
         if evaluator is None or not constraint.applies_to(candidate):
             continue
         outcome = evaluator(ctx, constraint, candidate, panel, day, slot, faculty_ids)
@@ -201,6 +216,53 @@ def evaluate_static(ctx: SchedulingContext, candidate: CandidateSpec, panel: Pan
             return False, outcomes, f"{constraint.name}: {outcome.detail}"
         outcomes.append(outcome)
     return True, outcomes, None
+
+
+def evaluate_slot(ctx: SchedulingContext, candidate: CandidateSpec, panel: PanelSpec,
+                  day: date, slot: Interval
+                  ) -> tuple[bool, list[ConstraintOutcome], str | None]:
+    """Rules fixed by (candidate, panel, day, slot) - safe to compute once."""
+    return _evaluate(ctx, candidate, panel, day, slot, [],
+                     exclude=_FACULTY_DEPENDENT)
+
+
+def evaluate_time(ctx: SchedulingContext, candidate: CandidateSpec, panel: PanelSpec,
+                  day: date, slot: Interval
+                  ) -> tuple[bool, list[ConstraintOutcome], str | None]:
+    """Rules that depend only on the candidate and the time, not the panel.
+
+    The slot grid is shared across panels, so caching these per
+    (candidate, day, slot) avoids re-evaluating them once per panel.
+    """
+    return _evaluate(ctx, candidate, panel, day, slot, [],
+                     exclude=_FACULTY_DEPENDENT | _PANEL_DEPENDENT)
+
+
+def evaluate_panel(ctx: SchedulingContext, candidate: CandidateSpec,
+                   panel: PanelSpec, day: date, slot: Interval
+                   ) -> tuple[bool, list[ConstraintOutcome], str | None]:
+    """Rules fixed by (candidate, panel) - evaluated once per pair."""
+    return _evaluate(ctx, candidate, panel, day, slot, [],
+                     types=_PANEL_DEPENDENT)
+
+
+def evaluate_faculty(ctx: SchedulingContext, candidate: CandidateSpec,
+                     panel: PanelSpec, day: date, slot: Interval,
+                     faculty_ids: list[int]
+                     ) -> tuple[bool, list[ConstraintOutcome], str | None]:
+    """Rules that depend on which faculty were actually assigned."""
+    return _evaluate(ctx, candidate, panel, day, slot, faculty_ids,
+                     types=_FACULTY_DEPENDENT)
+
+
+def evaluate_static(ctx: SchedulingContext, candidate: CandidateSpec, panel: PanelSpec,
+                    day: date, slot: Interval,
+                    faculty_ids: list[int]) -> tuple[bool, list[ConstraintOutcome], str | None]:
+    """Run every rule that does not depend on other assignments.
+
+    Returns (feasible, outcomes, hard_violation_reason).
+    """
+    return _evaluate(ctx, candidate, panel, day, slot, faculty_ids)
 
 
 def registered_types() -> list[str]:

@@ -116,9 +116,20 @@ class SchedulingOptions:
     max_options_per_candidate: int = 400
     backtrack_limit: int = 20000
     priority_weights: dict[str, float] = field(default_factory=dict)
+    _date_index: dict[date, int] | None = field(default=None, repr=False, compare=False)
 
     def weight_for(self, priority: ConstraintPriority) -> float:
         return float(self.priority_weights.get(priority.value, 0.0))
+
+    def date_index(self, day: date) -> int:
+        """Position of `day` in the scheduling window, O(1).
+
+        Scoring runs this for every candidate x panel x slot combination, so a
+        linear scan over `dates` here is measurable on large instances.
+        """
+        if self._date_index is None or len(self._date_index) != len(self.dates):
+            self._date_index = {d: i for i, d in enumerate(self.dates)}
+        return self._date_index.get(day, len(self.dates) - 1)
 
 
 @dataclass(slots=True)
@@ -176,6 +187,9 @@ class SlotOption:
     required_size: int
     score: float = 0.0
     outcomes: list[ConstraintOutcome] = field(default_factory=list)
+    # Outcomes fixed by (candidate, panel, day, slot).  Cached here so placement
+    # re-runs only the three rules that depend on the chosen faculty.
+    slot_outcomes: list[ConstraintOutcome] = field(default_factory=list)
 
     @property
     def blocking_slot(self) -> Interval:

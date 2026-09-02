@@ -6,7 +6,7 @@ optimisation score is computed.
 """
 from __future__ import annotations
 
-from app.scheduling.constraints import evaluate_static
+from app.scheduling.constraints import evaluate_faculty
 from app.scheduling.state import SolutionState
 from app.scheduling.types import (Assignment, CandidateSpec, PanelSpec,
                                   SchedulingContext, SlotOption)
@@ -30,12 +30,15 @@ def try_build_assignment(ctx: SchedulingContext, state: SolutionState,
     if violation:
         return None, violation
 
-    feasible, outcomes, reason = evaluate_static(
+    # The slot-fixed rules were already evaluated when the domain was built;
+    # only the three faculty-dependent rules need re-running for these members.
+    feasible, faculty_outcomes, reason = evaluate_faculty(
         ctx, candidate, panel, option.day, option.slot, faculty_ids)
     if not feasible:
         return None, reason or "Hard constraint violated"
 
-    outcomes = outcomes + state.dynamic_outcomes(faculty_ids, panel.id, option.day)
+    outcomes = (list(option.slot_outcomes) + faculty_outcomes
+                + state.dynamic_outcomes(faculty_ids, panel.id, option.day))
     return Assignment(
         candidate_id=candidate.id,
         panel_id=panel.id,
