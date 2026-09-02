@@ -260,12 +260,13 @@ class ExcelService:
                                 + "; ".join(f"{f.name} ({'/'.join(f.all_names)})"
                                             for f in spec.required_fields
                                             if f.name in missing))})
-            else:
-                row_errors, row_warnings = self._validate_rows(spec, frame, mapping)
-                preview["errors"].extend(row_errors)
-                preview["warnings"].extend(row_warnings)
-                if row_errors:
-                    preview["is_valid"] = False
+            # Row checks run even when a column is missing, so one round-trip
+            # reports everything wrong with the file instead of just the header.
+            row_errors, row_warnings = self._validate_rows(spec, frame, mapping)
+            preview["errors"].extend(row_errors)
+            preview["warnings"].extend(row_warnings)
+            if row_errors:
+                preview["is_valid"] = False
             previews.append(preview)
             overall_errors.extend(preview["errors"])
 
@@ -339,7 +340,47 @@ class ExcelService:
                         errors.append({"row": excel_row, "column": column,
                                        "value": str(row.get(column)),
                                        "message": f"Score for '{key}' must be numeric"})
+
+        if spec.dataset == DatasetType.EVALUATIONS:
+            warnings.extend(self._duplicate_evaluator_warnings(frame, mapping))
         return errors[:200], warnings[:200]
+
+    def _duplicate_evaluator_warnings(self, frame: pd.DataFrame,
+                                      mapping: dict[str, str]) -> list[dict[str, Any]]:
+        """Flag rows that would silently overwrite each other on import.
+
+        Evaluations are keyed by (candidate, interview, evaluator).  When the
+        sheet has no usable `evaluator_id`, two teachers marking the same
+        candidate collapse onto one row and the first teacher's marks are lost.
+        """
+        candidate_col = mapping.get("candidate_id")
+        if not candidate_col:
+            return []
+        evaluator_col = mapping.get("evaluator_id")
+        seen: dict[str, int] = {}
+        clashing: dict[str, int] = {}
+        for _, row in frame.iterrows():
+            code = _as_str(row.get(candidate_col))
+            if not code:
+                continue
+            evaluator = _as_str(row.get(evaluator_col)) if evaluator_col else None
+            if evaluator:
+                continue
+            seen[code] = seen.get(code, 0) + 1
+            if seen[code] > 1:
+                clashing[code] = seen[code]
+        if not clashing:
+            return []
+        listed = ", ".join(sorted(clashing)[:10])
+        detail = ("no 'evaluator_id' column" if not evaluator_col
+                  else "a blank 'evaluator_id'")
+        return [{
+            "row": None, "column": evaluator_col or candidate_col,
+            "message": (f"{len(clashing)} candidate(s) appear on multiple rows with "
+                        f"{detail} ({listed}). Only the last row per candidate will "
+                        "be kept - add an evaluator_id column so each teacher's "
+                        "marks are stored and compiled separately."),
+        }]
 
     def _resolve_metric_columns(self, columns: list[str]) -> dict[str, str]:
         """metric_key -> column name, driven entirely by the metric configuration."""
@@ -704,12 +745,24 @@ class ExcelService:
                                           "message": f"Unknown candidate '{code}'"})
                 continue
             scores: list[dict[str, Any]] = []
+            out_of_range: list[str] = []
             for metric_key, column in metric_columns.items():
                 score = _as_float(raw_row.get(column))
                 if score is None:
                     continue
-                scores.append({"metric_id": metrics[metric_key].id,
-                               "raw_score": score})
+                metric = metrics[metric_key]
+                # Same range rule the API path enforces in _resolve_scores().
+                if not (metric.min_score <= score <= metric.max_score):
+                    out_of_range.append(
+                        f"'{metric.name}' score {score} is outside "
+                        f"{metric.min_score}-{metric.max_score}")
+                    continue
+                scores.append({"metric_id": metric.id, "raw_score": score})
+            if out_of_range:
+                summary["failed"] += 1
+                summary["errors"].append({"row": excel_row,
+                                          "message": "; ".join(out_of_range)})
+                continue
             if not scores:
                 summary["failed"] += 1
                 summary["errors"].append({"row": excel_row,
