@@ -7,10 +7,10 @@ hardcoded deeper in the codebase.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, List
+from typing import Annotated, Any, List
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production-please-use-a-long-random-string"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 12
-    CORS_ORIGINS: List[str] = Field(
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # --------------------------------------------------------------- upload
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
-    ALLOWED_UPLOAD_EXTENSIONS: List[str] = Field(
+    ALLOWED_UPLOAD_EXTENSIONS: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: [".xlsx", ".xls", ".csv"]
     )
 
@@ -108,7 +108,8 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             v = v.strip()
             if v.startswith("["):
-                return v
+                import json
+                return json.loads(v)
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
