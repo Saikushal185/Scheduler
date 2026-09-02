@@ -21,6 +21,7 @@ class SummaryCards(BaseModel):
     conflicts_detected: int = 0
     completed_interviews: int = 0
     evaluations_recorded: int = 0
+    candidates_evaluated: int = 0
 
 
 class UpcomingInterview(BaseModel):
@@ -127,6 +128,7 @@ class EvaluationAnalytics(BaseModel):
     panel_statistics: list[dict[str, Any]] = Field(default_factory=list)
     faculty_statistics: list[dict[str, Any]] = Field(default_factory=list)
     total_evaluations: int = 0
+    candidates_evaluated: int = 0
     average_overall_score: float = 0.0
 
 

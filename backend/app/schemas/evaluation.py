@@ -132,6 +132,8 @@ class RankingRow(BaseModel):
     strongest_metric: str | None = None
     weakest_metric: str | None = None
     recommendation: str | None = None
+    evaluator_count: int = 1
+    agreement_spread: float | None = None
 
 
 class CandidateMetricProfile(BaseModel):
@@ -144,3 +146,5 @@ class CandidateMetricProfile(BaseModel):
     metrics: list[dict[str, Any]] = Field(default_factory=list)
     strongest_metric: str | None = None
     weakest_metric: str | None = None
+    evaluator_count: int = 1
+    evaluator_breakdown: list[dict[str, Any]] = Field(default_factory=list)

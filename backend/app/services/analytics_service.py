@@ -65,7 +65,11 @@ class AnalyticsService:
             "conflicts_detected": len(conflicts),
             "completed_interviews": len(
                 [i for i in interviews if i.status == InterviewStatus.COMPLETED]),
+            # Rows recorded vs. distinct candidates covered: with two evaluators
+            # per candidate the raw row count overstates coverage.
             "evaluations_recorded": self.evaluations.count(),
+            "candidates_evaluated": len(
+                {e.candidate_id for e in self.evaluations.all_full()}),
         }
 
     def dashboard(self) -> dict[str, Any]:
@@ -310,9 +314,10 @@ class AnalyticsService:
                  "average_score": round(sum(values) / len(values), 2)}
                 for fid, values in faculty_stats.items() if fid in faculty and values],
             "total_evaluations": len(evaluations),
+            "candidates_evaluated": len({e.candidate_id for e in evaluations}),
             "average_overall_score": round(
-                sum(e.overall_score for e in evaluations) / len(evaluations), 3)
-            if evaluations else 0.0,
+                sum(r["overall_score"] for r in rankings) / len(rankings), 3)
+            if rankings else 0.0,
         }
 
     # ----------------------------------------------------------------- report
