@@ -9,29 +9,37 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings as app_settings
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import (ConflictError, NotFoundError,
+                                 PermissionError_, ValidationError)
 from app.core.logging_config import get_logger
-from app.models import Interview
+from app.models import Interview, InterviewChangeRequest
 from app.models.enums import (AvailabilityStatus, BusySlotSource, CandidateStatus,
-                              HistoryAction, InterviewStatus)
+                              ChangeRequestStatus, HistoryAction, InterviewStatus)
 from app.repositories import (AvailabilityRepository, BusySlotRepository,
                               CandidateRepository, FacultyRepository,
                               InterviewMemberRepository, InterviewRepository,
                               PanelRepository)
 from app.scheduling.conflicts import detect_conflicts
-from app.scheduling.types import (Assignment, CandidateSpec, FacultySpec, PanelSpec,
-                                  SchedulingContext, SchedulingOptions)
-from app.schemas.interview import InterviewCreate, RescheduleRequest
+from app.scheduling.types import (Assignment, CandidateSpec, ConstraintSpec,
+                                  FacultySpec, PanelSpec, SchedulingContext,
+                                  SchedulingOptions)
+from app.core.permissions import Scope, assert_candidate_owns
+from app.scheduling.constraints import evaluate_static
+from app.scheduling.domain import _panel_candidate_slots
+from app.scheduling.state import SolutionState
+from app.schemas.interview import (ChangeRequestCreate, ChangeRequestDecision,
+                                   InterviewCreate, RescheduleRequest)
 from app.services.free_slot_service import FreeSlotService
 from app.services.history_service import HistoryService
 from app.services.settings_service import SettingsService
-from app.utils.timeutils import Interval, subtract_intervals, to_minutes
+from app.utils.timeutils import (Interval, parse_date, parse_time,
+                                 subtract_intervals, to_minutes)
 
 logger = get_logger(__name__)
 
@@ -409,6 +417,223 @@ class InterviewService:
                 "department": candidate.department if candidate else None,
             })
         return events
+
+    # ------------------------------------------------------- bookable slots
+    def available_slots(self, *, candidate_id: int, panel_id: int,
+                        day: date | None = None, start: date | None = None,
+                        end: date | None = None, duration_minutes: int | None = None,
+                        limit: int = 100) -> list[dict[str, Any]]:
+        """Slots this candidate could legally be booked into with this panel.
+
+        Reuses the scheduling engine rather than reimplementing availability, so
+        a manually picked slot is validated and scored exactly the way the
+        automated scheduler would score it.
+        """
+        candidate = self.candidates.get(candidate_id)
+        if candidate is None:
+            raise NotFoundError(f"Candidate {candidate_id} was not found")
+        panel = self.panels.get(panel_id)
+        if panel is None:
+            raise NotFoundError(f"Panel {panel_id} was not found")
+
+        config = self.settings.get()
+        duration = duration_minutes or config.interview_duration_minutes
+        if day is not None:
+            days = [day]
+        else:
+            first = start or config.schedule_start_date or date.today()
+            last = end or config.schedule_end_date or first
+            if last < first:
+                raise ValidationError("end_date must not be before start_date")
+            days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+            if not config.allow_weekends:
+                days = [d for d in days if d.weekday() < 5]
+        if not days:
+            return []
+
+        ctx, assignments = self._context()
+        ctx.options.dates = sorted(set(days))
+        ctx.options.duration_minutes = duration
+        # `_context()` builds a bare context for conflict detection.  Scoring a
+        # suggestion the way the auto-scheduler would needs the live constraint
+        # rows and the candidate's real preferences, so load both.
+        ctx.constraints = self._active_constraints()
+        panel_spec = next((p for p in ctx.panels if p.id == panel_id), None)
+        candidate_spec = self._candidate_spec(candidate)
+        if panel_spec is None:
+            return []
+        ctx.candidates = [candidate_spec]
+
+        # Seed the solver state with what is already booked so taken slots drop out.
+        state = SolutionState(ctx)
+        for assignment in assignments:
+            state.commit(assignment)
+
+        window = Interval(to_minutes(config.day_start_time),
+                          to_minutes(config.day_end_time))
+        faculty_names = {f.id: f.faculty_name for f in self.faculty.all()}
+        results: list[dict[str, Any]] = []
+        for current in ctx.options.dates:
+            for slot in _panel_candidate_slots(ctx, panel_spec, current, window):
+                if not candidate_spec.is_available(current, slot):
+                    continue
+                if not state.candidate_free(candidate_id, current, slot):
+                    continue
+                if not state.panel_free(panel_id, current, slot):
+                    continue
+                faculty_ids = state.select_faculty(panel_spec, current, slot)
+                if not faculty_ids:
+                    continue
+                feasible, outcomes, _ = evaluate_static(
+                    ctx, candidate_spec, panel_spec, current, slot, faculty_ids)
+                if not feasible:
+                    continue
+                results.append({
+                    "date": current,
+                    "start_time": slot.start_time,
+                    "end_time": slot.end_time,
+                    "duration_minutes": slot.duration,
+                    "panel_id": panel_id,
+                    "faculty_ids": faculty_ids,
+                    "faculty_names": [faculty_names.get(f, str(f)) for f in faculty_ids],
+                    "score": round(sum(o.score for o in outcomes), 3),
+                    "reasons": [o.to_dict() for o in outcomes],
+                })
+        results.sort(key=lambda r: (-r["score"], r["date"], r["start_time"]))
+        return results[:limit]
+
+    def _active_constraints(self) -> list[ConstraintSpec]:
+        from app.repositories import ConstraintRepository
+
+        return [
+            ConstraintSpec(id=row.id, name=row.name,
+                           constraint_type=row.constraint_type, priority=row.priority,
+                           scope=row.scope or {}, parameters=row.parameters or {},
+                           weight_multiplier=row.weight_multiplier)
+            for row in ConstraintRepository(self.db).active()]
+
+    def _candidate_spec(self, candidate) -> CandidateSpec:
+        """Full spec including declared availability and stated preferences."""
+        availability: dict[date, list[Interval]] = defaultdict(list)
+        for window in candidate.availability or []:
+            day = parse_date(window.get("date"))
+            start = parse_time(window.get("start_time"))
+            end = parse_time(window.get("end_time"))
+            if day and start and end and end > start:
+                availability[day].append(Interval.from_times(start, end))
+        return CandidateSpec(
+            id=candidate.id, code=candidate.candidate_code,
+            name=candidate.candidate_name, department=candidate.department,
+            preferred_date=candidate.preferred_date,
+            preferred_time=candidate.preferred_time,
+            preferred_panel_code=candidate.preferred_panel_code,
+            availability=dict(availability),
+            required_panel_code=(candidate.constraints or {}).get("required_panel"),
+            priority=candidate.priority or 0)
+
+    # -------------------------------------------------- candidate self-service
+    def _own_interview(self, interview_id: int, scope: Scope) -> Interview:
+        interview = self.interviews.get_full(interview_id)
+        if interview is None:
+            raise NotFoundError(f"Interview {interview_id} was not found")
+        assert_candidate_owns(scope, interview.candidate_id, "interview")
+        return interview
+
+    def confirm_attendance(self, interview_id: int, scope: Scope) -> dict[str, Any]:
+        interview = self._own_interview(interview_id, scope)
+        if interview.status in (InterviewStatus.CANCELLED, InterviewStatus.UNSCHEDULED):
+            raise ValidationError(
+                "This interview is not active, so attendance cannot be confirmed.")
+        interview.candidate_confirmed_at = datetime.now()
+        self.db.flush()
+        self.history.record(interview, HistoryAction.CONFIRMED, {},
+                            self.history.snapshot(interview),
+                            reason="Attendance confirmed by the candidate",
+                            user_id=scope.user.id)
+        return self._response(interview, [], 0)
+
+    def create_change_request(self, interview_id: int, payload: ChangeRequestCreate,
+                              scope: Scope) -> dict[str, Any]:
+        interview = self._own_interview(interview_id, scope)
+        existing = self.db.query(InterviewChangeRequest).filter(
+            InterviewChangeRequest.interview_id == interview_id,
+            InterviewChangeRequest.status == ChangeRequestStatus.PENDING).first()
+        if existing is not None:
+            raise ValidationError(
+                "You already have a pending request for this interview.")
+        request = InterviewChangeRequest(
+            interview_id=interview.id, candidate_id=interview.candidate_id,
+            requested_date=payload.requested_date,
+            requested_start_time=payload.requested_start_time,
+            reason=payload.reason, status=ChangeRequestStatus.PENDING)
+        self.db.add(request)
+        self.db.flush()
+        self.history.record(interview, HistoryAction.CHANGE_REQUESTED, {},
+                            {"requested_date": str(payload.requested_date),
+                             "requested_start_time": str(payload.requested_start_time)},
+                            reason=payload.reason, user_id=scope.user.id)
+        return self._change_request_dict(request)
+
+    def list_change_requests(self, scope: Scope, *, status: str | None = None
+                             ) -> list[dict[str, Any]]:
+        query = self.db.query(InterviewChangeRequest)
+        if scope.candidate_id is not None:
+            query = query.filter(
+                InterviewChangeRequest.candidate_id == scope.candidate_id)
+        elif scope.faculty_id is not None:
+            raise PermissionError_(
+                "Reschedule requests are handled by the scheduling administrators.")
+        if status:
+            query = query.filter(InterviewChangeRequest.status == status.upper())
+        rows = query.order_by(InterviewChangeRequest.id.desc()).all()
+        return [self._change_request_dict(r) for r in rows]
+
+    def decide_change_request(self, request_id: int, payload: ChangeRequestDecision,
+                              user_id: int | None = None) -> dict[str, Any]:
+        request = self.db.get(InterviewChangeRequest, request_id)
+        if request is None:
+            raise NotFoundError(f"Change request {request_id} was not found")
+        if request.status != ChangeRequestStatus.PENDING:
+            raise ValidationError(
+                f"This request was already {request.status.value.lower()}.")
+        if payload.approve:
+            # Route through the normal reschedule so history, conflict detection
+            # and free-slot recalculation behave exactly as an admin edit would.
+            self.reschedule(
+                request.interview_id,
+                RescheduleRequest(
+                    date=payload.date or request.requested_date,
+                    start_time=payload.start_time or request.requested_start_time,
+                    reason=f"Approved candidate request #{request.id}"),
+                user_id)
+        request.status = (ChangeRequestStatus.APPROVED if payload.approve
+                          else ChangeRequestStatus.REJECTED)
+        request.decision_note = payload.decision_note
+        request.decided_by = user_id
+        request.decided_at = datetime.now()
+        self.db.flush()
+        return self._change_request_dict(request)
+
+    def _change_request_dict(self, request: InterviewChangeRequest) -> dict[str, Any]:
+        candidate = request.candidate
+        interview = request.interview
+        return {
+            "id": request.id,
+            "interview_id": request.interview_id,
+            "candidate_id": request.candidate_id,
+            "requested_date": request.requested_date,
+            "requested_start_time": request.requested_start_time,
+            "reason": request.reason,
+            "status": request.status,
+            "decision_note": request.decision_note,
+            "decided_by": request.decided_by,
+            "decided_at": request.decided_at,
+            "created_at": request.created_at,
+            "candidate_name": candidate.candidate_name if candidate else None,
+            "candidate_code": candidate.candidate_code if candidate else None,
+            "current_date": interview.date if interview else None,
+            "current_start_time": interview.start_time if interview else None,
+        }
 
     # ----------------------------------------------------------------- helpers
     def _response(self, interview: Interview, warnings: list[str],

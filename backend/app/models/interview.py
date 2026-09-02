@@ -8,7 +8,8 @@ from sqlalchemy import (JSON, Boolean, Date, DateTime, Enum, Float, ForeignKey,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
-from app.models.enums import HistoryAction, InterviewStatus, ScheduleRunStatus
+from app.models.enums import (ChangeRequestStatus, HistoryAction, InterviewStatus,
+                              ScheduleRunStatus)
 
 
 class SchedulingRun(Base, TimestampMixin):
@@ -73,6 +74,8 @@ class Interview(Base, TimestampMixin):
     round_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     location: Mapped[str | None] = mapped_column(String(128))
     notes: Mapped[str | None] = mapped_column(Text)
+    # Set when the candidate confirms attendance from their own login.
+    candidate_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     candidate = relationship("Candidate", back_populates="interviews", lazy="selectin")
     panel = relationship("PanelGroup", back_populates="interviews", lazy="selectin")
@@ -83,6 +86,41 @@ class Interview(Base, TimestampMixin):
                            cascade="all, delete-orphan",
                            order_by="desc(InterviewScheduleHistory.id)")
     evaluations = relationship("Evaluation", back_populates="interview")
+    change_requests = relationship("InterviewChangeRequest", back_populates="interview",
+                                   cascade="all, delete-orphan")
+
+
+class InterviewChangeRequest(Base, TimestampMixin):
+    """A candidate asking for a different slot.
+
+    Students cannot reschedule themselves - approving a request routes through
+    the normal InterviewService.reschedule(), so history, conflict detection and
+    free-slot recalculation all behave exactly as an admin edit would.
+    """
+
+    __tablename__ = "interview_change_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    interview_id: Mapped[int] = mapped_column(
+        ForeignKey("interviews.id", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
+    requested_date: Mapped[date | None] = mapped_column(Date)
+    requested_start_time: Mapped[time | None] = mapped_column(Time)
+    reason: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[ChangeRequestStatus] = mapped_column(
+        Enum(ChangeRequestStatus, native_enum=False, length=32,
+             values_callable=lambda e: [m.value for m in e]),
+        default=ChangeRequestStatus.PENDING, nullable=False, index=True,
+    )
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    decided_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    interview = relationship("Interview", back_populates="change_requests",
+                             lazy="selectin")
+    candidate = relationship("Candidate", lazy="selectin")
 
 
 class InterviewPanelMember(Base):

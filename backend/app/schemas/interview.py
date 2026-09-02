@@ -5,7 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import HistoryAction, InterviewStatus
+from app.models.enums import (ChangeRequestStatus, HistoryAction,
+                              InterviewStatus)
 from app.schemas.candidate import CandidateRead
 from app.schemas.common import ORMModel
 from app.schemas.faculty import FacultyRead
@@ -34,6 +35,7 @@ class InterviewRead(ORMModel):
     unscheduled_reason: str | None = None
     is_locked: bool
     is_manual: bool
+    candidate_confirmed_at: _dt.datetime | None = None
     round_number: int
     location: str | None = None
     notes: str | None = None
@@ -54,6 +56,52 @@ class InterviewCreate(BaseModel):
     location: str | None = None
     notes: str | None = None
     force: bool = False
+
+
+class AvailableSlot(BaseModel):
+    """A slot a manual booking may legally use, scored like the auto-scheduler."""
+
+    date: _dt.date
+    start_time: _dt.time
+    end_time: _dt.time
+    duration_minutes: int
+    panel_id: int
+    faculty_ids: list[int] = Field(default_factory=list)
+    faculty_names: list[str] = Field(default_factory=list)
+    score: float = 0.0
+    reasons: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ChangeRequestCreate(BaseModel):
+    requested_date: _dt.date | None = None
+    requested_start_time: _dt.time | None = None
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class ChangeRequestDecision(BaseModel):
+    approve: bool
+    decision_note: str | None = None
+    # Optional override of what the candidate asked for.
+    date: _dt.date | None = None
+    start_time: _dt.time | None = None
+
+
+class ChangeRequestRead(ORMModel):
+    id: int
+    interview_id: int
+    candidate_id: int
+    requested_date: _dt.date | None = None
+    requested_start_time: _dt.time | None = None
+    reason: str | None = None
+    status: ChangeRequestStatus
+    decision_note: str | None = None
+    decided_by: int | None = None
+    decided_at: _dt.datetime | None = None
+    created_at: _dt.datetime | None = None
+    candidate_name: str | None = None
+    candidate_code: str | None = None
+    current_date: _dt.date | None = None
+    current_start_time: _dt.time | None = None
 
 
 class RescheduleRequest(BaseModel):
