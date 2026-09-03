@@ -3,6 +3,11 @@
 import { RefreshCw } from "lucide-react";
 import * as React from "react";
 
+import {
+  FacultyTimeline,
+  TimelineLegend,
+  TimelineTotals,
+} from "@/components/faculty-timeline";
 import { usePageMeta } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,47 +17,17 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useToast } from "@/components/ui/toast";
 import {
   useFaculty,
-  useFreeSlotGroups,
+  useFacultyTimeline,
   useRecalculateFreeSlots,
+  useSettings,
 } from "@/lib/queries";
-import { addDaysISO, formatDate, formatTime, minutesToHours, todayISO } from "@/lib/utils";
+import { addDaysISO, formatDate, minutesToHours, todayISO } from "@/lib/utils";
 
-/** Renders one day's free windows as a proportional timeline. */
-function SlotTimeline({
-  slots,
-}: {
-  slots: { id: number; start_time: string; end_time: string; duration_minutes: number }[];
-}) {
-  const DAY_START = 8 * 60;
-  const DAY_END = 19 * 60;
-  const span = DAY_END - DAY_START;
-  const toMinutes = (value: string) => {
-    const [hours, minutes] = value.split(":").map(Number);
-    return hours * 60 + minutes;
-  };
-
-  return (
-    <div className="relative h-7 w-full overflow-hidden rounded-md bg-slate-100">
-      {slots.map((slot) => {
-        const start = Math.max(DAY_START, toMinutes(slot.start_time));
-        const end = Math.min(DAY_END, toMinutes(slot.end_time));
-        const left = ((start - DAY_START) / span) * 100;
-        const width = Math.max(1, ((end - start) / span) * 100);
-        return (
-          <div
-            key={slot.id}
-            title={`${formatTime(slot.start_time)} - ${formatTime(slot.end_time)} (${minutesToHours(slot.duration_minutes)})`}
-            className="absolute top-0 flex h-full items-center justify-center overflow-hidden rounded-[4px] bg-[var(--color-success)]/85 px-1 text-[9px] font-medium text-white"
-            style={{ left: `${left}%`, width: `${width}%` }}
-          >
-            {width > 9 ? formatTime(slot.start_time) : ""}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
+/**
+ * Free time in the context that makes it readable: what a faculty member's day
+ * is actually doing. Free slots on their own do not say whether the gap next to
+ * them is an interview or a blocked-out afternoon, so the whole day is drawn.
+ */
 export default function FreeSlotsPage() {
   const [facultyId, setFacultyId] = React.useState("");
   const [startDate, setStartDate] = React.useState(todayISO());
@@ -60,8 +35,9 @@ export default function FreeSlotsPage() {
 
   const { notify } = useToast();
   const { data: faculty } = useFaculty();
+  const { data: settings } = useSettings();
   const recalculate = useRecalculateFreeSlots();
-  const { data, isLoading, error } = useFreeSlotGroups({
+  const { data, isLoading, error } = useFacultyTimeline({
     faculty_id: facultyId ? Number(facultyId) : undefined,
     start_date: startDate,
     end_date: endDate,
@@ -91,22 +67,34 @@ export default function FreeSlotsPage() {
     </Button>,
   );
 
+  // Draw the same working day the scheduler uses, with an hour of margin, so a
+  // block sitting at the edge is still visible.
+  const [dayStart, dayEnd] = React.useMemo(() => {
+    const toMinutes = (value?: string) => {
+      if (!value) return null;
+      const [h, m] = value.split(":").map(Number);
+      return h * 60 + m;
+    };
+    return [
+      (toMinutes(settings?.day_start_time) ?? 9 * 60) - 60,
+      (toMinutes(settings?.day_end_time) ?? 17 * 60) + 60,
+    ];
+  }, [settings]);
+
   const totals = React.useMemo(() => {
-    const groups = data ?? [];
-    const minutes = groups.reduce((sum, group) => sum + group.total_free_minutes, 0);
-    const slots = groups.reduce((sum, group) => sum + group.slots.length, 0);
+    const days = data ?? [];
     return {
-      minutes,
-      slots,
-      faculty: new Set(groups.map((group) => group.faculty_id)).size,
-      days: new Set(groups.map((group) => group.date)).size,
+      booked: days.reduce((sum, day) => sum + day.booked_minutes, 0),
+      busy: days.reduce((sum, day) => sum + day.busy_minutes, 0),
+      free: days.reduce((sum, day) => sum + day.free_minutes, 0),
+      faculty: new Set(days.map((day) => day.faculty_id)).size,
     };
   }, [data]);
 
   const byDate = React.useMemo(() => {
-    const map = new Map<string, typeof data>();
-    (data ?? []).forEach((group) => {
-      map.set(group.date, [...(map.get(group.date) ?? []), group]);
+    const map = new Map<string, NonNullable<typeof data>>();
+    (data ?? []).forEach((day) => {
+      map.set(day.date, [...(map.get(day.date) ?? []), day]);
     });
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [data]);
@@ -143,10 +131,10 @@ export default function FreeSlotsPage() {
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Free windows" value={totals.slots} tone="success" />
-        <StatCard label="Total free time" value={minutesToHours(totals.minutes)} tone="info" />
-        <StatCard label="Faculty with free time" value={totals.faculty} />
-        <StatCard label="Days covered" value={totals.days} tone="neutral" />
+        <StatCard label="Free time" value={minutesToHours(totals.free)} tone="success" />
+        <StatCard label="Booked" value={minutesToHours(totals.booked)} tone="brand" />
+        <StatCard label="Blocked out" value={minutesToHours(totals.busy)} tone="warning" />
+        <StatCard label="Faculty covered" value={totals.faculty} tone="neutral" />
       </div>
 
       <Alert tone="info">
@@ -160,37 +148,36 @@ export default function FreeSlotsPage() {
         <ErrorState error={error} />
       ) : byDate.length ? (
         <div className="space-y-4">
-          {byDate.map(([date, groups]) => (
+          {byDate.map(([date, days]) => (
             <Card key={date}>
               <CardHeader>
                 <CardTitle>{formatDate(date)}</CardTitle>
-                <span className="text-[11px] text-slate-400">
-                  {groups?.length ?? 0} faculty ·{" "}
-                  {minutesToHours(
-                    (groups ?? []).reduce((sum, g) => sum + g.total_free_minutes, 0),
-                  )}{" "}
-                  free
-                </span>
+                <TimelineLegend />
               </CardHeader>
               <CardContent className="space-y-2.5">
-                {(groups ?? []).map((group) => (
+                {days.map((day) => (
                   <div
-                    key={`${group.faculty_id}-${group.date}`}
-                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[200px_1fr_120px]"
+                    key={`${day.faculty_id}-${day.date}`}
+                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[200px_1fr_230px]"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-xs font-medium text-slate-800">
-                        {group.faculty_name}
+                        {day.faculty_name}
                       </p>
                       <p className="truncate text-[10px] text-slate-400">
-                        {group.department ?? group.faculty_code}
+                        {day.department ?? day.faculty_code}
                       </p>
                     </div>
-                    <SlotTimeline slots={group.slots} />
-                    <p className="text-right text-[11px] text-slate-500">
-                      {group.slots.length} slot(s) ·{" "}
-                      {minutesToHours(group.total_free_minutes)}
-                    </p>
+                    <FacultyTimeline
+                      segments={day.segments}
+                      dayStart={dayStart}
+                      dayEnd={dayEnd}
+                    />
+                    <TimelineTotals
+                      booked={day.booked_minutes}
+                      busy={day.busy_minutes}
+                      free={day.free_minutes}
+                    />
                   </div>
                 ))}
               </CardContent>
@@ -200,7 +187,7 @@ export default function FreeSlotsPage() {
       ) : (
         <Card>
           <EmptyState
-            title="No free slots in this range"
+            title="No availability in this range"
             description="Import faculty availability, then recalculate to derive the free slots."
           />
         </Card>
