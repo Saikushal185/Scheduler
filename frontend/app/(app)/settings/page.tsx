@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save } from "lucide-react";
+import { Eye, EyeOff, Save } from "lucide-react";
 import * as React from "react";
 
 import { usePageMeta } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, LoadingState } from "@/components/ui/feedback";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { useAlgorithms, useSettings } from "@/lib/queries";
 import type { InterviewSettings } from "@/lib/types";
+import { formatDateTime } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { notify } = useToast();
@@ -52,6 +54,23 @@ export default function SettingsPage() {
       client.invalidateQueries();
     },
     onError: (err: Error) => setError(err.message),
+  });
+
+  // Releasing results is deliberately its own action rather than a field on the
+  // settings form: it makes marks visible to every candidate at once, and that
+  // should not happen as a side effect of editing an interview duration.
+  const publish = useMutation({
+    mutationFn: (next: boolean) =>
+      api.put<InterviewSettings>("/settings", { results_published: next }),
+    onSuccess: (result) => {
+      notify(
+        result.results_published
+          ? "Results released. Candidates can now see their own marks."
+          : "Results hidden from candidates again.",
+      );
+      client.invalidateQueries();
+    },
+    onError: (err: Error) => notify(err.message, "error"),
   });
 
   if (isLoading || !form) return <LoadingState />;
@@ -198,6 +217,53 @@ export default function SettingsPage() {
               ))}
             </Select>
           </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Candidate results</CardTitle>
+          <Badge tone={data?.results_published ? "success" : "neutral"}>
+            {data?.results_published ? "Released" : "Not released"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <p className="text-xs text-slate-500">
+            Candidates only see their own compiled marks once released, so a
+            teacher&apos;s part-finished entry is never visible. Rankings and other
+            candidates stay hidden either way.
+          </p>
+          {data?.results_published ? (
+            <Alert tone="success">
+              Released
+              {data.results_published_at
+                ? ` on ${formatDateTime(data.results_published_at)}`
+                : ""}
+              . Every candidate with an account can see their own result.
+            </Alert>
+          ) : (
+            <Alert tone="warning">
+              Marks are being collected. Candidates cannot see anything yet.
+            </Alert>
+          )}
+          <div>
+            <Button
+              type="button"
+              variant={data?.results_published ? "secondary" : "default"}
+              disabled={publish.isPending}
+              onClick={() => publish.mutate(!data?.results_published)}
+            >
+              {data?.results_published ? (
+                <>
+                  <EyeOff className="h-3.5 w-3.5" /> Hide results again
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3.5 w-3.5" /> Release results to candidates
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
