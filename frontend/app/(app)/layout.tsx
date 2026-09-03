@@ -29,7 +29,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     // Bounce to the caller's own home rather than rendering a page whose every
     // request would come back 403.
-    const role = getStoredUser<User>()?.role;
+    const user = getStoredUser<User>();
+    // An account still holding an issued temporary password gets nowhere else
+    // until it is replaced - the temporary one was shown to somebody else.
+    if (user?.must_change_password) {
+      router.replace("/change-password");
+      return;
+    }
+    const role = user?.role;
     if (!canAccess(role, pathname)) {
       router.replace(homeFor(role));
       return;

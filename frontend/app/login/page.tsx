@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarClock } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -25,6 +26,11 @@ export default function LoginPage() {
     try {
       const result = await api.post<LoginResponse>("/auth/login", { email, password });
       setSession(result.access_token, result.user);
+      if (result.user.must_change_password) {
+        // Signed in with a password somebody else chose and could still read.
+        router.push("/change-password");
+        return;
+      }
       // Each role has a different landing page - a student has no dashboard.
       router.push(homeFor(result.user.role));
     } catch (err) {
@@ -86,7 +92,14 @@ export default function LoginPage() {
             {pending ? "Signing in..." : "Sign in"}
           </Button>
 
-          <p className="mt-4 text-center text-[11px] text-slate-400">
+          <p className="mt-4 text-center text-[11px] text-slate-500">
+            First time here?{" "}
+            <Link href="/claim" className="font-medium text-[var(--color-brand)]">
+              Set up your account
+            </Link>
+          </p>
+
+          <p className="mt-3 text-center text-[11px] text-slate-400">
             Seeded administrator: admin@example.com / admin123
           </p>
         </form>
