@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Menu, RefreshCw } from "lucide-react";
+import { KeyRound, LogOut, Menu, RefreshCw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
@@ -61,6 +61,14 @@ export function Topbar({
             </p>
             <p className="text-[10px] text-slate-400">{user?.role ?? ""}</p>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Change password"
+            onClick={() => router.push("/change-password")}
+          >
+            <KeyRound className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
