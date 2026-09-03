@@ -316,6 +316,7 @@ export default function SchedulerPage() {
                     <TabsTrigger value="conflicts">
                       Conflicts ({preview.conflicts.length})
                     </TabsTrigger>
+                    <TabsTrigger value="why">Why this schedule</TabsTrigger>
                   </TabsList>
                 </div>
 
@@ -431,6 +432,10 @@ export default function SchedulerPage() {
                       faculty or panel is double-booked and every break is respected.
                     </Alert>
                   )}
+                </TabsContent>
+
+                <TabsContent value="why" className="mt-3 px-5 pb-5">
+                  <Explanation statistics={preview.statistics} />
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -551,6 +556,119 @@ export default function SchedulerPage() {
           />
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+type SatisfactionRow = {
+  type: string;
+  priority: string;
+  satisfied: number;
+  violated: number;
+  satisfaction_rate: number;
+  score_awarded: number;
+  score_forgone: number;
+};
+
+/**
+ * What the run traded away, so the schedule can be defended rather than just
+ * accepted. Constraints are ordered by score forfeited, which is the useful
+ * ranking: it puts the preference that cost the most at the top.
+ */
+function Explanation({ statistics }: { statistics: Record<string, unknown> }) {
+  const rows = (statistics.constraint_satisfaction ?? []) as SatisfactionRow[];
+  const num = (key: string) =>
+    typeof statistics[key] === "number" ? (statistics[key] as number) : null;
+
+  const seedScheduled = num("seed_scheduled");
+  const finalScheduled = num("final_scheduled");
+  const scoreGain = num("score_gain");
+  const scheduledGain = num("scheduled_gain");
+  const optimised = seedScheduled !== null && finalScheduled !== null;
+
+  return (
+    <div className="grid gap-4">
+      {optimised ? (
+        <div className="rounded-lg border border-[var(--color-border)] p-3">
+          <p className="mb-2 text-xs font-medium text-slate-700">
+            Improvement pass
+          </p>
+          {scheduledGain === 0 && (scoreGain ?? 0) === 0 ? (
+            <p className="text-xs text-slate-500">
+              The first solution was already a local optimum for the moves
+              available, so nothing changed. This is normal when there is
+              slack in the timetable and everyone already fits.
+            </p>
+          ) : (
+            <p className="text-xs text-slate-600">
+              Improved the first solution from {seedScheduled} to {finalScheduled}{" "}
+              scheduled
+              {scoreGain ? `, gaining ${Math.round(scoreGain).toLocaleString()} score` : ""}
+              .
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500 tabular-nums">
+            <span>{String(statistics.insertion_moves ?? 0)} insertions</span>
+            <span>{String(statistics.relocation_moves ?? 0)} relocations</span>
+            <span>{String(statistics.swap_moves ?? 0)} swaps</span>
+            <span>{String(statistics.improvement_passes ?? 0)} passes</span>
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length ? (
+        <div>
+          <p className="mb-2 text-xs font-medium text-slate-700">
+            Constraints, by score given up
+          </p>
+          <Table>
+            <THead>
+              <TR>
+                <TH>Constraint</TH>
+                <TH>Priority</TH>
+                <TH className="text-right">Met</TH>
+                <TH className="text-right">Missed</TH>
+                <TH className="text-right">Satisfied</TH>
+                <TH className="text-right">Score forfeited</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {rows.map((row) => (
+                <TR key={row.type}>
+                  <TD className="font-medium text-slate-900">
+                    {row.type.replaceAll("_", " ").toLowerCase()}
+                  </TD>
+                  <TD>
+                    <Badge tone={row.priority === "HARD" ? "danger" : "neutral"}>
+                      {row.priority}
+                    </Badge>
+                  </TD>
+                  <TD className="text-right tabular-nums">{row.satisfied}</TD>
+                  <TD className="text-right tabular-nums">{row.violated}</TD>
+                  <TD className="text-right tabular-nums">
+                    {row.satisfaction_rate}%
+                  </TD>
+                  <TD className="text-right tabular-nums">
+                    {row.score_forgone
+                      ? Math.round(row.score_forgone).toLocaleString()
+                      : "-"}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+          <p className="mt-2 text-[11px] text-slate-400">
+            Forfeited score is measured against the best any placement in this run
+            achieved for that constraint. A hard constraint below 100% would mean
+            the schedule is invalid - none should ever appear here.
+          </p>
+        </div>
+      ) : (
+        <Alert tone="info">
+          This run produced no constraint breakdown. Re-run with the optimised
+          algorithm to see what the schedule traded away.
+        </Alert>
+      )}
     </div>
   );
 }
