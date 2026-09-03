@@ -13,7 +13,7 @@ import { Alert, EmptyState, ErrorState, LoadingState } from "@/components/ui/fee
 import { Field, Input, Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { api } from "@/lib/api";
+import { api, getStoredUser } from "@/lib/api";
 import {
   keys,
   useCandidates,
@@ -22,6 +22,7 @@ import {
   useUsers,
 } from "@/lib/queries";
 import type { ProvisionedAccount, User, UserRole } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
 
 const ROLES: UserRole[] = ["ADMIN", "COORDINATOR", "FACULTY", "STUDENT", "VIEWER"];
 
@@ -55,6 +56,7 @@ export default function UsersPage() {
   const { data: faculty } = useFaculty({});
   const { data: candidates } = useCandidates({});
   const provision = useProvisionAccounts();
+  const currentUserId = getStoredUser<User>()?.id;
 
   const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState<FormState>(EMPTY);
@@ -203,6 +205,7 @@ export default function UsersPage() {
                   <TH>Role</TH>
                   <TH>Linked to</TH>
                   <TH>Status</TH>
+                  <TH>Password</TH>
                   <TH className="text-right">Actions</TH>
                 </TR>
               </THead>
@@ -227,18 +230,21 @@ export default function UsersPage() {
                       <Badge tone={user.is_active ? "success" : "neutral"}>
                         {user.is_active ? "Active" : "Disabled"}
                       </Badge>
-                      {user.must_change_password ? (
-                        <Badge tone="warning" className="ml-1">
-                          Must reset
-                        </Badge>
-                      ) : null}
+                    </TD>
+                    <TD>
+                      <PasswordStatus user={user} />
                     </TD>
                     <TD className="text-right">
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => resetPassword.mutate(user.id)}
-                        disabled={resetPassword.isPending}
+                        disabled={resetPassword.isPending || user.id === currentUserId}
+                        title={
+                          user.id === currentUserId
+                            ? "Use change password for your own account"
+                            : undefined
+                        }
                       >
                         <KeyRound className="h-3.5 w-3.5" /> Reset password
                       </Button>
@@ -364,6 +370,40 @@ export default function UsersPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * What can honestly be said about a password.
+ *
+ * A password the user chose is a bcrypt hash - there is nothing to display and
+ * that is the point. So this reports provenance instead: whether the account is
+ * still holding the temporary password we issued (in which case re-issuing and
+ * reading the new one is the way to help them), or the person has since set
+ * their own, which nobody else can see.
+ */
+function PasswordStatus({ user }: { user: User }) {
+  if (user.must_change_password) {
+    return (
+      <div className="leading-tight">
+        <Badge tone="warning">Temporary</Badge>
+        <p className="mt-0.5 text-[10px] text-slate-400">
+          {user.password_issued_at
+            ? `Issued ${formatDate(user.password_issued_at)}, not yet changed`
+            : "Not yet changed"}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="leading-tight">
+      <Badge tone="success">Set by user</Badge>
+      <p className="mt-0.5 text-[10px] text-slate-400">
+        {user.password_changed_at
+          ? `Changed ${formatDate(user.password_changed_at)}`
+          : "Never shown to anyone"}
+      </p>
     </div>
   );
 }
