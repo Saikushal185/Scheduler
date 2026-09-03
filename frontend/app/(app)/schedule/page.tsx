@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Lock,
   LockOpen,
+  CalendarPlus,
   Rows3,
   TriangleAlert,
   UserX,
@@ -25,8 +26,11 @@ import { EmptyRow, TBody, TD, TH, THead, TR, Table } from "@/components/ui/table
 import { useToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api";
 import {
+  useAvailableSlots,
   useCalendar,
+  useCandidates,
   useChangeInterviewStatus,
+  useCreateInterview,
   useConflicts,
   useDepartments,
   useFaculty,
@@ -36,8 +40,9 @@ import {
   useMarkFacultyUnavailable,
   usePanels,
   useRescheduleInterview,
+  useSettings,
 } from "@/lib/queries";
-import type { Interview } from "@/lib/types";
+import type { AvailableSlot, Interview } from "@/lib/types";
 import { formatDate, formatDateTime, formatTime, todayISO } from "@/lib/utils";
 
 const STATUSES = [
@@ -75,6 +80,19 @@ export default function SchedulePage() {
   });
   const [warnings, setWarnings] = React.useState<string[]>([]);
 
+  // Manual booking. The slot is chosen from what the engine says is actually
+  // bookable, so a clash cannot be created here by construction.
+  const [bookOpen, setBookOpen] = React.useState(false);
+  const [bookError, setBookError] = React.useState<string | null>(null);
+  const [bookForm, setBookForm] = React.useState({
+    candidate_id: "",
+    panel_id: "",
+    date: todayISO(),
+    location: "",
+    notes: "",
+  });
+  const [chosenSlot, setChosenSlot] = React.useState<AvailableSlot | null>(null);
+
   const query = React.useMemo(
     () =>
       Object.fromEntries(
@@ -90,18 +108,50 @@ export default function SchedulePage() {
   const { data: faculty } = useFaculty();
   const { data: departments } = useDepartments();
   const { data: history } = useInterviewHistory(selected?.id ?? null);
+  const { data: candidates } = useCandidates({});
+  const { data: settings } = useSettings();
+  const {
+    data: slots,
+    isFetching: slotsLoading,
+    error: slotsError,
+  } = useAvailableSlots({
+    candidate_id: bookForm.candidate_id ? Number(bookForm.candidate_id) : undefined,
+    panel_id: bookForm.panel_id ? Number(bookForm.panel_id) : undefined,
+    date: bookForm.date || undefined,
+  });
 
   const reschedule = useRescheduleInterview();
   const changeStatus = useChangeInterviewStatus();
   const lock = useLockInterview();
   const markUnavailable = useMarkFacultyUnavailable();
+  const createInterview = useCreateInterview();
 
   usePageMeta(
     "Interview Schedule",
     "Day, week and table views with manual overrides and conflict detection",
-    <Button size="sm" variant="secondary" onClick={() => setUnavailableOpen(true)}>
-      <UserX className="h-3.5 w-3.5" /> Mark faculty unavailable
-    </Button>,
+    <div className="flex gap-2">
+      <Button size="sm" variant="secondary" onClick={() => setUnavailableOpen(true)}>
+        <UserX className="h-3.5 w-3.5" /> Mark faculty unavailable
+      </Button>
+      <Button
+        size="sm"
+        onClick={() => {
+          setBookError(null);
+          setChosenSlot(null);
+          setBookForm({
+            candidate_id: "",
+            panel_id: "",
+            date: settings?.schedule_start_date || todayISO(),
+            location: "",
+            notes: "",
+          });
+          setBookOpen(true);
+        }}
+      >
+        <CalendarPlus className="h-3.5 w-3.5" /> Book manually
+      </Button>
+    </div>,
+    [settings?.schedule_start_date],
   );
 
   function openInterview(interview: Interview) {
@@ -602,6 +652,205 @@ export default function SchedulePage() {
             </DialogFooter>
           </DialogContent>
         ) : null}
+      </Dialog>
+
+      {/* -------------------------------------------------- manual booking */}
+      <Dialog open={bookOpen} onOpenChange={setBookOpen}>
+        <DialogContent
+          title="Book an interview manually"
+          description="Only slots that are genuinely free are offered, so this cannot clash."
+          className="max-w-2xl"
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!chosenSlot) {
+                setBookError("Pick a slot before booking.");
+                return;
+              }
+              setBookError(null);
+              createInterview.mutate(
+                {
+                  candidate_id: Number(bookForm.candidate_id),
+                  panel_id: Number(bookForm.panel_id),
+                  date: chosenSlot.date,
+                  start_time: chosenSlot.start_time,
+                  duration_minutes: chosenSlot.duration_minutes,
+                  faculty_ids: chosenSlot.faculty_ids,
+                  location: bookForm.location || null,
+                  notes: bookForm.notes || null,
+                },
+                {
+                  onSuccess: (result) => {
+                    notify(`Booked ${result.interview.schedule_code}.`);
+                    setBookOpen(false);
+                    setChosenSlot(null);
+                  },
+                  onError: (err: Error) =>
+                    setBookError(
+                      err instanceof ApiError
+                        ? [err.message, ...err.detailLines].join(" ")
+                        : err.message,
+                    ),
+                },
+              );
+            }}
+          >
+            {bookError ? (
+              <Alert tone="danger" className="mb-3">
+                {bookError}
+              </Alert>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Candidate">
+                <Select
+                  required
+                  value={bookForm.candidate_id}
+                  onChange={(event) => {
+                    setChosenSlot(null);
+                    setBookForm((state) => ({
+                      ...state,
+                      candidate_id: event.target.value,
+                    }));
+                  }}
+                >
+                  <option value="">Select a candidate</option>
+                  {(candidates ?? []).map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.candidate_code} · {candidate.candidate_name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Panel">
+                <Select
+                  required
+                  value={bookForm.panel_id}
+                  onChange={(event) => {
+                    setChosenSlot(null);
+                    setBookForm((state) => ({ ...state, panel_id: event.target.value }));
+                  }}
+                >
+                  <option value="">Select a panel</option>
+                  {(panels ?? []).map((panel) => (
+                    <option key={panel.id} value={panel.id}>
+                      {panel.panel_code} · {panel.panel_name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Date">
+                <Input
+                  type="date"
+                  required
+                  value={bookForm.date}
+                  onChange={(event) => {
+                    setChosenSlot(null);
+                    setBookForm((state) => ({ ...state, date: event.target.value }));
+                  }}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-4">
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Available slots
+              </p>
+              {!bookForm.candidate_id || !bookForm.panel_id ? (
+                <p className="rounded-lg border border-dashed border-[var(--color-border)] px-3 py-6 text-center text-xs text-slate-400">
+                  Choose a candidate, a panel and a date to see what is bookable.
+                </p>
+              ) : slotsLoading ? (
+                <LoadingState label="Finding free slots..." />
+              ) : slotsError ? (
+                <Alert tone="danger">{(slotsError as Error).message}</Alert>
+              ) : !slots?.length ? (
+                <Alert tone="warning">
+                  No free slots for this panel on {formatDate(bookForm.date)}. The
+                  panel may not have enough free faculty that day, or the candidate
+                  may be unavailable. Try another date or panel.
+                </Alert>
+              ) : (
+                <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-[var(--color-border)] p-2">
+                  {slots.map((slot) => {
+                    const key = `${slot.date}-${slot.start_time}`;
+                    const active =
+                      chosenSlot?.date === slot.date &&
+                      chosenSlot?.start_time === slot.start_time;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setChosenSlot(slot)}
+                        aria-pressed={active}
+                        className={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-2 text-left transition-colors ${
+                          active
+                            ? "border-[var(--color-brand)] bg-[var(--color-brand-light)]"
+                            : "border-transparent hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-xs font-medium tabular-nums text-slate-900">
+                            {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                          </span>
+                          <span className="block truncate text-[10px] text-slate-500">
+                            {slot.faculty_names.join(", ")}
+                          </span>
+                        </span>
+                        <Badge tone={active ? "brand" : "neutral"}>
+                          {Math.round(slot.score).toLocaleString()}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {slots?.length ? (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Ranked the way the automated scheduler ranks them - the highest
+                  score is the slot it would have picked.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Venue (optional)">
+                <Input
+                  value={bookForm.location}
+                  placeholder="Room B-204"
+                  onChange={(event) =>
+                    setBookForm((state) => ({ ...state, location: event.target.value }))
+                  }
+                />
+              </Field>
+              <Field label="Notes (optional)">
+                <Input
+                  value={bookForm.notes}
+                  onChange={(event) =>
+                    setBookForm((state) => ({ ...state, notes: event.target.value }))
+                  }
+                />
+              </Field>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={() => setBookOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createInterview.isPending || !chosenSlot}
+              >
+                {createInterview.isPending
+                  ? "Booking..."
+                  : chosenSlot
+                    ? `Book ${formatTime(chosenSlot.start_time)}`
+                    : "Pick a slot"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
       </Dialog>
 
       {/* ------------------------------------------- mark faculty unavailable */}
