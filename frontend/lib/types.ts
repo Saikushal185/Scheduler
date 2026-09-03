@@ -26,6 +26,9 @@ export interface User {
   must_change_password?: boolean;
   faculty_id?: number | null;
   candidate_id?: number | null;
+  /** When the temporary password was issued; null once the user set their own. */
+  password_issued_at?: string | null;
+  password_changed_at?: string | null;
 }
 
 export interface LoginResponse {
@@ -515,6 +518,8 @@ export interface InterviewSettings {
   allow_weekends: boolean;
   default_algorithm: string;
   organisation_name: string;
+  results_published: boolean;
+  results_published_at?: string | null;
 }
 
 export interface RowIssue {

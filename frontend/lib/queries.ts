@@ -437,3 +437,13 @@ export function useProvisionAccounts() {
     onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
   });
 }
+
+// ------------------------------------------------------------- passwords
+export function useChangePassword() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { current_password: string; new_password: string }) =>
+      api.post<{ message: string }>("/auth/change-password", body),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
+  });
+}
