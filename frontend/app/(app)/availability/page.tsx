@@ -4,6 +4,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarPlus, Ban, Trash2 } from "lucide-react";
 import * as React from "react";
 
+import {
+  FacultyTimeline,
+  TimelineLegend,
+  TimelineTotals,
+} from "@/components/faculty-timeline";
 import { usePageMeta } from "@/components/layout/page";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,9 +20,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyRow, TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
-import { useAvailability, useBusySlots, useFaculty } from "@/lib/queries";
+import {
+  useAvailability,
+  useBusySlots,
+  useFaculty,
+  useFacultyTimeline,
+  useSettings,
+} from "@/lib/queries";
 import type { Availability, BusySlot } from "@/lib/types";
-import { formatDate, formatTime, todayISO } from "@/lib/utils";
+import { addDaysISO, formatDate, formatTime, todayISO } from "@/lib/utils";
 
 export default function AvailabilityPage() {
   const [facultyId, setFacultyId] = React.useState<string>("");
@@ -38,6 +49,28 @@ export default function AvailabilityPage() {
   const params = facultyId ? { faculty_id: Number(facultyId) } : {};
   const { data: availability, isLoading, error: loadError } = useAvailability(params);
   const { data: busySlots } = useBusySlots(params);
+  const { data: settings } = useSettings();
+  // The tables say what was declared; the timeline says what the day looks like
+  // once interviews and blocks are subtracted.
+  const [rangeStart] = React.useState(todayISO());
+  const rangeEnd = React.useMemo(() => addDaysISO(rangeStart, 13), [rangeStart]);
+  const { data: timeline } = useFacultyTimeline({
+    faculty_id: facultyId ? Number(facultyId) : undefined,
+    start_date: rangeStart,
+    end_date: rangeEnd,
+  });
+
+  const [dayStart, dayEnd] = React.useMemo(() => {
+    const toMinutes = (value?: string) => {
+      if (!value) return null;
+      const [h, m] = value.split(":").map(Number);
+      return h * 60 + m;
+    };
+    return [
+      (toMinutes(settings?.day_start_time) ?? 9 * 60) - 60,
+      (toMinutes(settings?.day_end_time) ?? 17 * 60) + 60,
+    ];
+  }, [settings]);
 
   usePageMeta(
     "Faculty Availability",
@@ -143,6 +176,52 @@ export default function AvailabilityPage() {
             {availability?.length ?? 0} availability window(s) ·{" "}
             {busySlots?.length ?? 0} busy slot(s)
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Booked, busy and free
+            <span className="ml-2 text-[11px] font-normal text-slate-400">
+              {formatDate(rangeStart)} - {formatDate(rangeEnd)}
+            </span>
+          </CardTitle>
+          <TimelineLegend />
+        </CardHeader>
+        <CardContent className="space-y-2.5">
+          {!timeline?.length ? (
+            <p className="py-4 text-center text-xs text-slate-400">
+              Nothing declared in the next two weeks
+              {facultyId ? " for this faculty member" : ""}.
+            </p>
+          ) : (
+            timeline.map((day) => (
+              <div
+                key={`${day.faculty_id}-${day.date}`}
+                className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[190px_1fr_230px]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-slate-800">
+                    {day.faculty_name}
+                  </p>
+                  <p className="truncate text-[10px] text-slate-400">
+                    {formatDate(day.date)}
+                  </p>
+                </div>
+                <FacultyTimeline
+                  segments={day.segments}
+                  dayStart={dayStart}
+                  dayEnd={dayEnd}
+                />
+                <TimelineTotals
+                  booked={day.booked_minutes}
+                  busy={day.busy_minutes}
+                  free={day.free_minutes}
+                />
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
