@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -29,6 +31,12 @@ class User(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     must_change_password: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False)
+    # Password provenance. A chosen password is a bcrypt hash and can never be
+    # shown, so these two dates are what the admin page reports instead: whether
+    # the account still holds the temporary password we issued, or the user has
+    # since set their own.
+    password_issued_at: Mapped[datetime | None] = mapped_column(DateTime)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     faculty_id: Mapped[int | None] = mapped_column(
         ForeignKey("faculty.id", ondelete="CASCADE"), unique=True, index=True)

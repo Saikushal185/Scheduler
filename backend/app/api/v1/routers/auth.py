@@ -6,10 +6,11 @@ from app.api.deps import AdminUser, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.exceptions import AuthError, NotFoundError, ValidationError
 from app.core.security import create_access_token, hash_password, verify_password
+from datetime import datetime
 from app.repositories import UserRepository
-from app.schemas.auth import (ChangePasswordRequest, LoginRequest,
-                              PasswordResetResponse, Token, UserCreate, UserRead,
-                              UserUpdate)
+from app.schemas.auth import (ChangePasswordRequest, ClaimAccountRequest,
+                              LoginRequest, PasswordResetResponse, Token,
+                              UserCreate, UserRead, UserUpdate)
 from app.schemas.common import Message
 from app.services.account_service import AccountService
 
@@ -23,6 +24,18 @@ def login(payload: LoginRequest, db: DbSession) -> Token:
         raise AuthError("Incorrect email or password")
     if not user.is_active:
         raise AuthError("This account has been disabled")
+    token = create_access_token(str(user.id), extra={"role": str(user.role),
+                                                     "email": user.email})
+    return Token(access_token=token,
+                 expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                 user=UserRead.model_validate(user))
+
+
+@router.post("/claim", response_model=Token, status_code=status.HTTP_201_CREATED,
+             summary="Claim an account for a record already on file")
+def claim_account(payload: ClaimAccountRequest, db: DbSession) -> Token:
+    """Public sign-up, restricted to people the institute already knows about."""
+    user = AccountService(db).claim(payload)
     token = create_access_token(str(user.id), extra={"role": str(user.role),
                                                      "email": user.email})
     return Token(access_token=token,
@@ -46,6 +59,7 @@ def change_password(payload: ChangePasswordRequest, db: DbSession,
         raise ValidationError("The new password must differ from the current one")
     user.hashed_password = hash_password(payload.new_password)
     user.must_change_password = False
+    user.password_changed_at = datetime.now()
     db.flush()
     return Message(message="Password updated")
 
@@ -73,6 +87,12 @@ def update_user(user_id: int, payload: UserUpdate, db: DbSession,
 def reset_password(user_id: int, db: DbSession,
                    current: AdminUser) -> PasswordResetResponse:
     """Issues a one-time password the user must change on next sign-in."""
+    if user_id == current.id:
+        # The new password is shown once; miss it and you have locked yourself
+        # out of the only account that can unlock anyone.
+        raise ValidationError(
+            "Use 'change password' to set your own password. Resetting it here "
+            "would sign you out with a one-time password shown only once.")
     user, temporary = AccountService(db).reset_password(user_id)
     return PasswordResetResponse(user=UserRead.model_validate(user),
                                  temporary_password=temporary)

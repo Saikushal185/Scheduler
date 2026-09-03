@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import secrets
 import string
+from datetime import datetime
 from typing import Iterable, Sequence
 
 from sqlalchemy.orm import Session
@@ -26,7 +27,7 @@ from app.models import Candidate, Faculty, User
 from app.models.enums import UserRole
 from app.repositories import (CandidateRepository, FacultyRepository,
                               UserRepository)
-from app.schemas.auth import UserCreate, UserUpdate
+from app.schemas.auth import ClaimAccountRequest, UserCreate, UserUpdate
 
 logger = get_logger(__name__)
 
@@ -91,7 +92,9 @@ class AccountService:
             email=email, full_name=payload.full_name,
             hashed_password=hash_password(payload.password), role=payload.role,
             faculty_id=payload.faculty_id, candidate_id=payload.candidate_id,
-            must_change_password=payload.must_change_password)
+            must_change_password=payload.must_change_password,
+            password_issued_at=datetime.now() if payload.must_change_password else None,
+            password_changed_at=None if payload.must_change_password else datetime.now())
         logger.info("Created %s account %s", payload.role.value, email)
         return user
 
@@ -129,9 +132,53 @@ class AccountService:
         temporary = generate_password()
         user.hashed_password = hash_password(temporary)
         user.must_change_password = True
+        user.password_issued_at = datetime.now()
+        user.password_changed_at = None
         self.db.flush()
         logger.info("Reset password for %s", user.email)
         return user, temporary
+
+    # ------------------------------------------------------------------ claim
+    def claim(self, payload: ClaimAccountRequest) -> User:
+        """Create a login for a person the institute already has on file.
+
+        The code and the email must both match the same record, which is what
+        stops someone claiming an account from a code alone. The role follows
+        from which kind of record matched, so a claimed account is always
+        scoped the same way an admin-created one would be.
+        """
+        code = payload.code.strip()
+        email = payload.email.lower().strip()
+
+        faculty = self.faculty.by_code(code)
+        candidate = None if faculty else self.candidates.by_code(code)
+        person = faculty or candidate
+        # One generic message for a bad code and a mismatched email, so this
+        # cannot be used to discover which codes exist.
+        if person is None or (person.email or "").lower().strip() != email:
+            raise ValidationError(
+                "No record matches that code and email address. Check both "
+                "against the details your institute holds, or ask an "
+                "administrator to set your account up.")
+
+        link_field = "faculty_id" if faculty else "candidate_id"
+        role = UserRole.FACULTY if faculty else UserRole.STUDENT
+        if self.users.by_link(**{link_field: person.id}):
+            raise ValidationError(
+                "That record already has an account. Sign in instead, or ask an "
+                "administrator to reset the password.")
+        if self.users.by_email(email):
+            raise ValidationError(
+                "That email address is already in use by another account.")
+
+        name = (person.faculty_name if faculty else person.candidate_name)
+        user = self.users.create(
+            email=email, full_name=name,
+            hashed_password=hash_password(payload.password), role=role,
+            must_change_password=False, password_changed_at=datetime.now(),
+            **{link_field: person.id})
+        logger.info("Account claimed for %s by %s", code, email)
+        return user
 
     # ---------------------------------------------------------- provisioning
     def provision_faculty(self, faculty: Sequence[Faculty]) -> dict:
@@ -171,7 +218,8 @@ class AccountService:
             self.users.create(
                 email=email, full_name=name_of(person),
                 hashed_password=hash_password(temporary), role=role,
-                must_change_password=True, **{link_field: person.id})
+                must_change_password=True, password_issued_at=datetime.now(),
+                **{link_field: person.id})
             created.append({"email": email, "full_name": name_of(person),
                             "role": role, "temporary_password": temporary})
         self.db.flush()
