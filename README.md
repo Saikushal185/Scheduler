@@ -15,6 +15,26 @@ Excel/CSV upload → validation → database → faculty availability
 
 ---
 
+## Documentation
+
+The full reference lives in [`docs/`](docs/README.md), and as a single Word
+document — [`docs/AcademiSync-Documentation.docx`](docs/AcademiSync-Documentation.docx),
+rebuilt from these files with `python3 docs/build-docx.py`:
+
+| Document | Covers |
+| -------- | ------ |
+| [architecture.md](docs/architecture.md) | layers, bootstrap, error model, derived data, request lifecycle |
+| [data-model.md](docs/data-model.md) | every table, column and enum |
+| [roles-and-permissions.md](docs/roles-and-permissions.md) | the five roles, gating vs scoping, account lifecycle |
+| [scheduling-engine.md](docs/scheduling-engine.md) | free slots, domains, constraints, the three algorithms, overrides |
+| [evaluation-and-analytics.md](docs/evaluation-and-analytics.md) | configurable metrics, multi-evaluator compiling, dashboards |
+| [data-import.md](docs/data-import.md) | accepted sheets, column aliases, validation |
+| [api-reference.md](docs/api-reference.md) | every endpoint with the roles that may call it |
+| [frontend.md](docs/frontend.md) | routes, pages, data layer, guards |
+| [operations.md](docs/operations.md) | setup, configuration, testing, troubleshooting |
+
+---
+
 ## Contents
 
 - [Quick start](#quick-start)
