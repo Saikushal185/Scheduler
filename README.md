@@ -63,6 +63,15 @@ rebuilt from these files with `python3 docs/build-docx.py`:
 
 ## Quick start
 
+```bash
+git clone https://github.com/Saikushal185/Scheduler.git
+cd Scheduler
+```
+
+Then pick one of the two options below. Option A needs Docker and nothing else;
+Option B needs Python 3.12+ and Node 20+, and runs on SQLite so there is no
+database to provision.
+
 ### Option A — Docker Compose (PostgreSQL, closest to production)
 
 ```bash
