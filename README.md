@@ -458,7 +458,7 @@ environment variables or `backend/.env` (see `.env.example`).
 | `MAX_UPLOAD_BYTES` | `26214400` | 25 MB upload cap |
 | `DEFAULT_INTERVIEW_DURATION_MIN` | `30` | Seed value for settings |
 | `DEFAULT_BREAK_DURATION_MIN` | `10` | Break between interviews |
-| `DEFAULT_ALGORITHM` | `backtracking` | Default strategy |
+| `DEFAULT_ALGORITHM` | `optimized` | Default strategy — note `.env.example` ships `backtracking`, which wins once copied to `.env` |
 
 Runtime settings (duration, break, working day, date range, panel sizes, daily caps,
 weekends, algorithm) are stored in `interview_settings` and edited on the
