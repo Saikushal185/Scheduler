@@ -156,6 +156,31 @@ utilisation, scheduling efficiency and score distribution.
 
 ---
 
+## Tech stack
+
+Every version below is pinned in `backend/requirements.txt` or
+`frontend/package.json` — nothing floats.
+
+| Layer | Choice | Version | Why it is here |
+| ----- | ------ | ------- | -------------- |
+| API | FastAPI | 0.115.6 | Typed request/response models and a free OpenAPI schema |
+| Validation | Pydantic | 2.10.4 | One definition serves validation, serialisation and the docs |
+| ORM | SQLAlchemy | 2.0.36 | Explicit sessions; the 2.0 typed query API |
+| Database | SQLite / PostgreSQL | psycopg 3.2.3 | SQLite for a clone-and-run demo, PostgreSQL for real use |
+| Spreadsheets | pandas + openpyxl | 2.2.3 / 3.1.5 | Tolerant parsing of the messy files people actually send |
+| Auth | python-jose + passlib/bcrypt | 3.3.0 / 1.7.4 | JWT bearer tokens, bcrypt-hashed passwords |
+| Runtime | Python | 3.12+ | 3.10–3.13 all work; `setup.sh` picks the newest it finds |
+| UI | Next.js (App Router) | 16.3.4 | Server components for the shell, client components for the boards |
+| | React | 19 | |
+| | TypeScript | 5.7 | `npm run typecheck` is part of the build gate |
+| Styling | Tailwind CSS | 4.0 | Design tokens in CSS variables, no component library lock-in |
+| Primitives | Radix UI | 1.x | Accessible dialog, select, tabs, tooltip out of the box |
+| Server state | TanStack Query | 5.102 | Cache invalidation after every mutation, so views never go stale |
+| Calendar | FullCalendar | 6.1 | Day/week timeline for the schedule and free-slot views |
+| Charts | Recharts | 3.10 | Analytics dashboards |
+
+---
+
 ## Architecture
 
 ```
