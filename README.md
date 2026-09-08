@@ -39,6 +39,9 @@ rebuilt from these files with `python3 docs/build-docx.py`:
 | [api-reference.md](docs/api-reference.md) | every endpoint with the roles that may call it |
 | [frontend.md](docs/frontend.md) | routes, pages, data layer, guards |
 | [operations.md](docs/operations.md) | setup, configuration, testing, troubleshooting |
+| [faq.md](docs/faq.md) | the questions that come up first, each linked to the chapter behind it |
+| [glossary.md](docs/glossary.md) | availability vs free slot, domain, band, gating vs scoping |
+| [roadmap.md](docs/roadmap.md) | what is not built yet, and what I would do about it |
 
 ---
 
