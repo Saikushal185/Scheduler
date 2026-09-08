@@ -31,12 +31,14 @@ from app.schemas.auth import ClaimAccountRequest, UserCreate, UserUpdate
 
 logger = get_logger(__name__)
 
-# Unambiguous alphabet: no O/0, l/1/I, so a printed password can be typed back.
-_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+# Character set, not a credential: O/0 and l/1/I are left out so a temporary
+# password that gets printed or read aloud can be typed back correctly.
+_UNAMBIGUOUS_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
 
 
 def generate_password(length: int = 10) -> str:
-    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
+    """A fresh temporary password, drawn from the CSPRNG, never stored in clear."""
+    return "".join(secrets.choice(_UNAMBIGUOUS_CHARS) for _ in range(length))
 
 
 class AccountService:
