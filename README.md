@@ -46,6 +46,7 @@ rebuilt from these files with `python3 docs/build-docx.py`:
 
 - [Quick start](#quick-start)
 - [What the system does](#what-the-system-does)
+- [Tech stack](#tech-stack)
 - [Architecture](#architecture)
 - [The scheduling engine](#the-scheduling-engine)
 - [Free-slot calculation](#free-slot-calculation)
@@ -58,6 +59,8 @@ rebuilt from these files with `python3 docs/build-docx.py`:
 - [Testing](#testing)
 - [Project structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Author](#author)
 
 ---
 
@@ -558,6 +561,24 @@ The response names the sheet, row, column and value. Compare the headers against
 
 ---
 
+## Contributing
+
+Setup, the checks a change has to pass and where code belongs are in
+[CONTRIBUTING.md](CONTRIBUTING.md). Security posture and the pre-deploy
+checklist are in [SECURITY.md](SECURITY.md). What landed when is in
+[CHANGELOG.md](CHANGELOG.md), and what has deliberately not been built is in
+[docs/roadmap.md](docs/roadmap.md).
+
+---
+
+## Author
+
+**Sai Kushal** — [@Saikushal185](https://github.com/Saikushal185)
+
+Design, backend, scheduling engine, frontend and documentation.
+
+---
+
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Sai Kushal.
