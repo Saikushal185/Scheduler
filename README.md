@@ -1,5 +1,12 @@
 # AcademiSync - Automated Interview Scheduling and Evaluation Management System
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI%200.115-009688.svg)](backend/requirements.txt)
+[![Frontend: Next.js](https://img.shields.io/badge/frontend-Next.js%2016-black.svg)](frontend/package.json)
+[![Tests](https://img.shields.io/badge/tests-103%20passing-brightgreen.svg)](#testing)
+
+By **Sai Kushal** ([@Saikushal185](https://github.com/Saikushal185)).
+
 A full-stack application that builds conflict-free interview schedules from faculty
 availability, panel groups and flexible constraints, then manages post-interview
 evaluation against seven configurable metrics.
