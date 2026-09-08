@@ -30,6 +30,7 @@ Excel/CSV upload → validation → database → faculty availability
 | Work on the dashboard                               | [frontend.md](frontend.md)                       |
 | Get a quick answer to a common question             | [faq.md](faq.md)                                 |
 | Check what a term means here                        | [glossary.md](glossary.md)                       |
+| See what is not built yet                           | [roadmap.md](roadmap.md)                         |
 
 A Word edition of this whole reference is built from these files:
 

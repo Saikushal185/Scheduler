@@ -31,6 +31,7 @@ CHAPTERS = [
     "operations.md",
     "faq.md",
     "glossary.md",
+    "roadmap.md",
 ]
 
 # Chapter titles, used to turn a cross-file link into a readable reference.
@@ -47,6 +48,7 @@ TITLES = {
     "operations.md": "Running, configuring and testing",
     "faq.md": "FAQ",
     "glossary.md": "Glossary",
+    "roadmap.md": "Roadmap",
 }
 
 PAGE_BREAK = '\n```{=openxml}\n<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n```\n\n'
