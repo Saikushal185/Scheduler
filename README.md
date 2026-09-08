@@ -80,9 +80,20 @@ database to provision.
 
 ### Option A — Docker Compose (PostgreSQL, closest to production)
 
+Compose needs a database password and a JWT signing key. Neither has a default,
+so generate a pair into `.env` — which is git-ignored — and start the stack:
+
 ```bash
+cp .env.example .env
+printf 'POSTGRES_PASSWORD=%s\nSECRET_KEY=%s\n' \
+  "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" >> .env
+
 docker compose up --build
 ```
+
+If you skip that, compose stops with the name of the variable it is missing
+rather than starting on a credential that everyone reading this repository can
+see.
 
 | Service        | URL                            |
 | -------------- | ------------------------------ |

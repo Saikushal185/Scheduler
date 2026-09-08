@@ -24,10 +24,20 @@ populated on first sign-in. Then, in two terminals:
 
 ## Option B — Docker Compose (PostgreSQL)
 
+`POSTGRES_PASSWORD` and `SECRET_KEY` are required and deliberately have no
+committed default — compose refuses to start without them:
+
 ```bash
+cp .env.example .env
+printf 'POSTGRES_PASSWORD=%s\nSECRET_KEY=%s\n' \
+  "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" >> .env
+
 docker compose up --build
 docker compose exec backend python -m scripts.seed --reset
 ```
+
+Everything else in `.env.example` — user, database name, environment, bootstrap
+admin — falls back to a default in `docker-compose.yml` when left unset.
 
 | Service       | URL                        |
 | ------------- | -------------------------- |
