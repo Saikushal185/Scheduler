@@ -5,6 +5,14 @@ maintained alongside it, so the dates are the dates the work landed.
 
 ## Unreleased
 
+### Security
+- `POSTGRES_PASSWORD` and `SECRET_KEY` are now required compose variables with
+  no committed default; a root `.env.example` and a generate-into-`.env`
+  one-liner replace the literals that used to sit in `docker-compose.yml`.
+- Renamed `_PASSWORD_ALPHABET` to `_UNAMBIGUOUS_CHARS` — it is the character set
+  temporary passwords are drawn from, and the old name read as a credential to
+  secret scanners.
+
 ### Documentation
 - FAQ and glossary chapters, both wired into the docs index and the Word build.
 - Contributing notes: setup, the two checks that gate a change, and the
