@@ -436,15 +436,21 @@ weekends, algorithm) are stored in `interview_settings` and edited on the
 
 ```bash
 cd backend
-.venv/bin/python -m pytest -q          # 90 tests
+.venv/bin/python -m pytest -q          # 103 tests
 .venv/bin/python -m pytest tests/test_scheduler.py -v
+.venv/bin/python -m pytest --collect-only -q | tail -1
 ```
 
-| File | Covers |
-| ---- | ------ |
-| `tests/test_timeutils.py` | Interval algebra, free-slot subtraction, spreadsheet date/time parsing |
-| `tests/test_scheduler.py` | Every scheduling guarantee, both algorithms, priority handling, unscheduled reasons, a 40-candidate instance |
-| `tests/test_api.py` | The full workflow over HTTP: upload → validate → import → free slots → schedule → confirm → override → evaluate → analytics |
+| File | Tests | Covers |
+| ---- | ----: | ------ |
+| `tests/test_timeutils.py` | 23 | Interval algebra, free-slot subtraction, spreadsheet date/time parsing |
+| `tests/test_scheduler.py` | 50 | Every scheduling guarantee, all three algorithms, priority handling, unscheduled reasons, a 40-candidate instance |
+| `tests/test_api.py` | 30 | The full workflow over HTTP: upload → validate → import → free slots → schedule → confirm → override → evaluate → analytics |
+
+The scheduler tests are the ones worth reading first: each guarantee in
+[Guarantees](#guarantees-each-one-has-a-test) is a named test, so a broken
+invariant fails with the name of the rule it broke rather than an assertion
+count.
 
 Frontend checks:
 
