@@ -1,3 +1,14 @@
+> **This file is the original requirement specification** — the brief the system
+> was built against, kept unedited so the finished work can be checked against
+> what was actually asked for. It is not documentation of the system as built.
+>
+> For that, read the [README](README.md) or the reference set in
+> [`docs/`](docs/README.md).
+>
+> Implementation by Sai Kushal ([@Saikushal185](https://github.com/Saikushal185)).
+
+---
+
 Build a complete production-quality full-stack application for an
 “Automated Interview Scheduling and Evaluation Management System”.
 
