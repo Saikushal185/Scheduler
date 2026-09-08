@@ -1,5 +1,7 @@
 # AcademiSync — Documentation
 
+Written and maintained by **Sai Kushal** ([@Saikushal185](https://github.com/Saikushal185)).
+
 Automated interview scheduling and evaluation management. A FastAPI + SQLAlchemy
 backend drives a constraint-based scheduling engine; a Next.js dashboard exposes
 the whole workflow to five different kinds of user.
