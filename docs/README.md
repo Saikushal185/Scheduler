@@ -28,6 +28,8 @@ Excel/CSV upload → validation → database → faculty availability
 | Prepare a spreadsheet the importer accepts          | [data-import.md](data-import.md)                 |
 | Call the HTTP API                                   | [api-reference.md](api-reference.md)             |
 | Work on the dashboard                               | [frontend.md](frontend.md)                       |
+| Get a quick answer to a common question             | [faq.md](faq.md)                                 |
+| Check what a term means here                        | [glossary.md](glossary.md)                       |
 
 A Word edition of this whole reference is built from these files:
 
@@ -40,7 +42,9 @@ regenerate it after editing a chapter (needs `pandoc`).
 
 The repository [README](../README.md) is the short tour; these documents are the
 reference. `project.md` holds the original requirement specification and
-`torun.txt` a manual walkthrough script.
+`torun.txt` a manual walkthrough script. [CONTRIBUTING.md](../CONTRIBUTING.md)
+covers the development loop and [SECURITY.md](../SECURITY.md) the deploy
+checklist.
 
 ## The system in one page
 
